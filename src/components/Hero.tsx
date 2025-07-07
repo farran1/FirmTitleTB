@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import VideoCircle from "@/components/VideoCircle";
 import { navVideos } from "@/data/navVideos";
+import { Link } from "react-router-dom";
 
 const images = [
   "https://media.cntraveler.com/photos/601b10219d4d66f32970a192/16:9/w_2560%2Cc_limit/1097988940",
@@ -9,7 +10,7 @@ const images = [
   "https://www.hilton.com/im/en/TPARWQQ/19324141/tparw-exterior.jpg?impolicy=crop&cw=5000&ch=2799&gravity=NorthWest&xposition=0&yposition=6&rw=768&rh=430",
 ];
 
-const Hero = () => {
+const Hero: React.FC = () => {
   const [currentImage, setCurrentImage] = useState(0);
   const isMobile = useIsMobile();
 
@@ -40,25 +41,47 @@ const Hero = () => {
         className={`absolute bottom-0 ${
           isMobile
             ? "left-[30%] -translate-x-1/2 max-w-[80%]"
-            : "left-[10%] -translate-x-1/2 max-w-[500px]"
-        } z-20`}
+            : "left-[10%] -translate-x-1/2 max-w-[475px]"
+        } z-40`}
       />
 
-      {/* Desktop‐only nav circles overlay */}
-      {!isMobile && (
-        <div className="absolute bottom-12 left-0 right-0 z-30">
-          <div className="container mx-auto px-4 flex justify-center gap-6">
-            {navVideos.map((vid) => (
-              <VideoCircle
-                key={vid.title}
-                title={vid.title}
-                videoLink={vid.videoLink}
-                poster={vid.poster}
-              />
-            ))}
+      {/* Desktop: blue button above white buttons, both centered at bottom; mobile unchanged */}
+      <div>
+        {/* Mobile: blue button and white buttons as before */}
+        <div className="relative flex flex-col items-center md:hidden">
+          <Link to="/videos?video=0" className="pointer-events-auto w-auto h-auto max-w-fit max-h-fit flex-shrink-0 flex-grow-0 px-6 py-3 md:px-12 md:py-4 bg-blue-600 text-white text-lg md:text-2xl font-semibold rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-300 mt-4 md:mt-0 whitespace-nowrap flex items-center justify-center">
+            Discover The Firm Title Advantage
+          </Link>
+          <div className="flex flex-col items-center gap-2 mt-2 pointer-events-auto w-full px-4">
+            <Link to="/videos?video=3" className="px-2 py-1 bg-white/90 text-slate-900 text-sm font-semibold rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors duration-300 w-full flex items-center justify-center">
+              Sellers: Close on Your Phone in 15 Minutes
+            </Link>
+            <Link to="/videos?video=1" className="px-2 py-1 bg-white/90 text-slate-900 text-sm font-semibold rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors duration-300 w-full flex items-center justify-center">
+              Buyer Options for Owning a New Property
+            </Link>
+            <Link to="/videos?video=2" className="px-2 py-1 bg-white/90 text-slate-900 text-sm font-semibold rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors duration-300 w-full flex items-center justify-center">
+              Commercial Property: Save Taxes with a 1031
+            </Link>
           </div>
         </div>
-      )}
+        {/* Desktop: blue button above white buttons, both centered at bottom */}
+        <div className="hidden md:flex flex-col items-center absolute bottom-12 left-0 right-4 z-30 pointer-events-auto md:ml-[325px]">
+          <Link to="/videos?video=0" className="pointer-events-auto w-auto h-auto max-w-fit max-h-fit flex-shrink-0 flex-grow-0 px-14 py-4 bg-blue-600 text-white text-2xl font-semibold rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-300 mb-40 flex items-center justify-center whitespace-nowrap">
+            Discover The Firm Title Advantage
+          </Link>
+          <div className="flex justify-center gap-4 w-full">
+            <Link to="/videos?video=3" className="px-6 py-4 bg-white/90 text-slate-900 text-base font-semibold rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors duration-300 flex items-center justify-center text-center">
+              Sellers: Close on Your Phone in 15 Minutes
+            </Link>
+            <Link to="/videos?video=1" className="px-6 py-4 bg-white/90 text-slate-900 text-base font-semibold rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors duration-300 flex items-center justify-center text-center">
+              Buyer Options for Owning a New Property
+            </Link>
+            <Link to="/videos?video=2" className="px-6 py-4 bg-white/90 text-slate-900 text-base font-semibold rounded-full shadow-lg hover:bg-blue-600 hover:text-white transition-colors duration-300 flex items-center justify-center text-center">
+              Commercial Property: Save Taxes with a 1031
+            </Link>
+          </div>
+        </div>
+      </div>
     </section>
   );
 };

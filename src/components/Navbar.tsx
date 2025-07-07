@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -20,11 +19,14 @@ const Navbar = () => {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between">
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 md:hidden">
-                  <Menu className="h-5 w-5 md:h-6 md:w-6" />
-                </Button>
-              </SheetTrigger>
+              <div className="flex items-center md:hidden">
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 md:hidden">
+                    <Menu className="h-5 w-5 md:h-6 md:w-6" />
+                  </Button>
+                </SheetTrigger>
+                <Link to="/" className="ml-2 text-white font-bold text-lg md:hidden">Firm Title TB</Link>
+              </div>
               <SheetContent side="left" className="bg-slate-600/70 text-white w-[250px] p-0">
                 <nav className="flex flex-col space-y-1">
                   <Link 
@@ -35,11 +37,11 @@ const Navbar = () => {
                     Home
                   </Link>
                   <Link 
-                    to="/about" 
-                    className={`px-8 py-4 hover:bg-slate-700/70 transition-colors ${isActive("/about") ? "bg-slate-700/70 font-medium" : ""}`}
+                    to="/videos" 
+                    className={`px-8 py-4 hover:bg-slate-700/70 transition-colors ${isActive("/videos") ? "bg-slate-700/70 font-medium" : ""}`}
                     onClick={() => setIsOpen(false)}
                   >
-                    About
+                    Videos
                   </Link>
                   <Link 
                     to="/contact" 
@@ -68,10 +70,10 @@ const Navbar = () => {
                 Home
               </Link>
               <Link 
-                to="/about"
-                className={`text-white hover:text-white/80 transition-colors font-medium ${isActive("/about") ? "underline underline-offset-4" : ""}`}
+                to="/videos"
+                className={`text-white hover:text-white/80 transition-colors font-medium ${isActive("/videos") ? "underline underline-offset-4" : ""}`}
               >
-                About
+                Videos
               </Link>
               <Link 
                 to="/contact"
@@ -95,7 +97,7 @@ const Navbar = () => {
               <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-white hover:text-white/80 transition-colors">
                 <Instagram className="h-5 w-5 md:h-6 md:w-6" />
               </a>
-              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-white hover:text-white/80 transition-colors">
+              <a href="https://www.linkedin.com/in/scott-farrell-0778266/" target="_blank" rel="noopener noreferrer" className="text-white hover:text-white/80 transition-colors">
                 <Linkedin className="h-5 w-5 md:h-6 md:w-6" />
               </a>
             </div>
