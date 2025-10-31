@@ -40,16 +40,16 @@ const Hero: React.FC = () => {
         alt="Agent"
         className={`absolute bottom-0 ${
           isMobile
-            ? "left-[30%] -translate-x-1/2 max-w-[80%]"
-            : "left-[10%] -translate-x-1/2 max-w-[475px]"
-        } z-40`}
+            ? "left-[30%] -translate-x-1/2 max-w-[80%] z-10"
+            : "left-[10%] -translate-x-1/2 max-w-[475px] z-40"
+        } pointer-events-none md:pointer-events-auto`}
       />
 
       {/* Desktop: blue button above white buttons, both centered at bottom; mobile unchanged */}
       <div>
         {/* Mobile: blue button and white buttons as before */}
-        <div className="relative flex flex-col items-center md:hidden">
-          <Link to="/videos?video=0" className="pointer-events-auto w-auto h-auto max-w-fit max-h-fit flex-shrink-0 flex-grow-0 px-6 py-3 md:px-12 md:py-4 bg-blue-600 text-white text-lg md:text-2xl font-semibold rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-300 mt-4 md:mt-0 whitespace-nowrap flex items-center justify-center">
+        <div className="relative z-30 flex flex-col items-center md:hidden">
+          <Link to="/videos?video=0" className="pointer-events-auto w-auto h-auto max-w-fit max-h-fit flex-shrink-0 flex-grow-0 px-6 py-3 md:px-12 md:py-4 bg-[#0057FF] text-white text-lg md:text-2xl font-semibold rounded-full shadow-lg hover:bg-[#0046cc] transition-colors duration-300 mt-4 md:mt-0 whitespace-nowrap flex items-center justify-center">
             Discover The Firm Title Advantage
           </Link>
           <div className="flex flex-col items-center gap-2 mt-2 pointer-events-auto w-full px-4">
@@ -66,7 +66,7 @@ const Hero: React.FC = () => {
         </div>
         {/* Desktop: blue button above white buttons, both centered at bottom */}
         <div className="hidden md:flex flex-col items-center absolute bottom-12 left-0 right-4 z-30 pointer-events-auto md:ml-[325px]">
-          <Link to="/videos?video=0" className="pointer-events-auto w-auto h-auto max-w-fit max-h-fit flex-shrink-0 flex-grow-0 px-14 py-4 bg-blue-600 text-white text-2xl font-semibold rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-300 mb-40 flex items-center justify-center whitespace-nowrap">
+          <Link to="/videos?video=0" className="pointer-events-auto w-auto h-auto max-w-fit max-h-fit flex-shrink-0 flex-grow-0 px-14 py-4 bg-[#0057FF] text-white text-2xl font-semibold rounded-full shadow-lg hover:bg-[#0046cc] transition-colors duration-300 mb-40 flex items-center justify-center whitespace-nowrap">
             Discover The Firm Title Advantage
           </Link>
           <div className="flex justify-center gap-4 w-full">

@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
   return {
     // → "/" in dev so localhost works,
     // → "/FirmTitleTB/" in prod so GH Pages assets load
-    base: isDev ? "/" : "/FirmTitleTB/",
+    base: "/",
 
     // Enable source-maps in prod for real stack traces
     build: {
