@@ -13,6 +13,7 @@ const Footer = () => {
               <li><Link to="/about" className="hover:underline">About</Link></li>
               <li><Link to="/contact" className="hover:underline">Contact</Link></li>
               <li><Link to="/calculators" className="hover:underline">Calculators</Link></li>
+              <li><Link to="/privacy" className="hover:underline">Privacy Policy</Link></li>
             </ul>
           </div>
           
@@ -30,8 +31,13 @@ const Footer = () => {
           </div>
         </div>
         
-        <div className="border-t border-white/20 mt-4 pt-4 text-center">
+        <div className="border-t border-white/20 mt-4 pt-4 text-center space-y-2">
           <p className="text-sm md:text-base text-gray-200">© 2025 FirmTitleTB. All rights reserved.</p>
+          <div className="flex flex-wrap justify-center items-center gap-2 text-xs text-gray-300">
+            <Link to="/privacy" className="hover:underline hover:text-white transition-colors">Privacy Policy</Link>
+            <span className="text-gray-500">|</span>
+            <Link to="/sms-opt-in" className="hover:underline hover:text-white transition-colors">SMS Opt-In</Link>
+          </div>
         </div>
       </div>
     </footer>

@@ -2,10 +2,11 @@
 import React from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Mail, Phone, MapPin, Clock } from "lucide-react";
+import { Mail, Phone, MapPin, Clock, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const Contact: React.FC = () => {
   return (
@@ -83,6 +84,20 @@ const Contact: React.FC = () => {
                   Send Message
                 </Button>
               </form>
+
+              {/* SMS Opt-In Link */}
+              <div className="mt-6 pt-6 border-t border-slate-200">
+                <p className="text-sm text-slate-600 mb-3">
+                  Prefer text messages? Stay connected via SMS:
+                </p>
+                <Link
+                  to="/sms-opt-in"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-[#0057FF] hover:text-[#0046cc] transition-colors"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Sign Up for SMS Updates
+                </Link>
+              </div>
             </div>
 
             {/* Contact Information */}
