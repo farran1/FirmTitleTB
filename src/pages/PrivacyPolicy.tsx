@@ -17,7 +17,7 @@ const PrivacyPolicy: React.FC = () => {
           <div className="bg-white/80 rounded-lg shadow-md p-6 md:p-8 space-y-6 text-slate-700">
             <p className="text-sm text-slate-600">
               <strong>Effective Date:</strong> January 01, 2025<br />
-              <strong>Last Updated:</strong> November 10, 2025
+              <strong>Last Updated:</strong> January 27, 2026
             </p>
 
             <p>
@@ -45,9 +45,11 @@ const PrivacyPolicy: React.FC = () => {
             </section>
 
             <section id="sms">
-              <h2 className="text-2xl font-semibold mb-3">3. SMS/Text Messaging Policy</h2>
+              <h2 className="text-2xl font-semibold mb-3">3. SMS Messaging Terms</h2>
               <p className="mb-3">
-                By providing your mobile number and opting in, you consent to receive SMS/text messages from Firm Title TB. These messages are limited to:
+                By providing your mobile number and opting in, you consent to receive SMS/text messages from Firm Title TB, LLC. Consent to receive SMS/text messages is not a condition of purchasing any goods or services.
+                Mobile opt-in information is never shared with third parties for any purpose.
+                These messages are limited to:
               </p>
               <ul className="list-disc list-inside space-y-1 ml-4 mb-3">
                 <li>Responding to inquiries.</li>
@@ -61,7 +63,7 @@ const PrivacyPolicy: React.FC = () => {
               </div>
 
               <div className="mb-3">
-                <p className="mb-2"><strong>Opting Out:</strong> You can opt-out of SMS messages at any time by:</p>
+                <p className="mb-2"><strong>Opting Out:</strong> You can opt-out of SMS text messages at any time by:</p>
                 <ul className="list-disc list-inside space-y-1 ml-4">
                   <li>Replying <strong>"STOP"</strong> to any text message you receive from us.</li>
                   <li>Replying <strong>"HELP"</strong> to any text message for assistance.</li>
@@ -70,12 +72,9 @@ const PrivacyPolicy: React.FC = () => {
               </div>
 
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <p className="mb-2"><strong>HELP Instructions:</strong> For help with our SMS service, reply <strong>"HELP"</strong> to any message. You will receive information about:</p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>How to opt-out (reply STOP)</li>
-                  <li>Support contact information</li>
-                  <li>Message frequency and program details</li>
-                </ul>
+                <p className="mb-2"><strong>HELP Instructions:</strong> For help with our SMS text service, reply <strong>"HELP"</strong> to any message. A response containing the Firm Title TB, LLC brand name, program details,
+                message frequency, and support contact information. You will also receive information about how to opt-out (reply STOP).</p>
+
               </div>
             </section>
 
