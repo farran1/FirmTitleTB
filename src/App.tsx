@@ -11,6 +11,7 @@ import BuyerClosingCost from "./pages/BuyerClosingCost";
 import ClosingCostEstimatorPage from "./pages/ClosingCostEstimator";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import SMSOptInPage from "./pages/SMSOptIn";
+import Homestead from "./pages/Homestead";
 import NotFound from "./pages/NotFound";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -33,6 +34,7 @@ const App: React.FC = () => (
           <Route path="/calculators" element={<Calculators />} />
           <Route path="/calculators/buyer" element={<BuyerClosingCost />} />
           <Route path="/calculators/closing" element={<ClosingCostEstimatorPage />} />
+          <Route path="/homestead" element={<Homestead />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/sms-opt-in" element={<SMSOptInPage />} />
           <Route path="*" element={<NotFound />} />

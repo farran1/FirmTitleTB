@@ -36,15 +36,22 @@ const Navbar = () => {
                   >
                     Home
                   </Link>
-                  <Link 
-                    to="/videos" 
+                  <Link
+                    to="/videos"
                     className={`px-8 py-4 hover:bg-slate-700/70 transition-colors ${isActive("/videos") ? "bg-slate-700/70 font-medium" : ""}`}
                     onClick={() => setIsOpen(false)}
                   >
                     Videos
                   </Link>
-                  <Link 
-                    to="/contact" 
+                  <Link
+                    to="/homestead"
+                    className={`px-8 py-4 hover:bg-slate-700/70 transition-colors ${isActive("/homestead") ? "bg-slate-700/70 font-medium" : ""}`}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Homestead
+                  </Link>
+                  <Link
+                    to="/contact"
                     className={`px-8 py-4 hover:bg-slate-700/70 transition-colors ${isActive("/contact") ? "bg-slate-700/70 font-medium" : ""}`}
                     onClick={() => setIsOpen(false)}
                   >
@@ -69,13 +76,19 @@ const Navbar = () => {
               >
                 Home
               </Link>
-              <Link 
+              <Link
                 to="/videos"
                 className={`text-white hover:text-white/80 transition-colors font-medium ${isActive("/videos") ? "underline underline-offset-4" : ""}`}
               >
                 Videos
               </Link>
-              <Link 
+              <Link
+                to="/homestead"
+                className={`text-white hover:text-white/80 transition-colors font-medium ${isActive("/homestead") ? "underline underline-offset-4" : ""}`}
+              >
+                Homestead
+              </Link>
+              <Link
                 to="/contact"
                 className={`text-white hover:text-white/80 transition-colors font-medium ${isActive("/contact") ? "underline underline-offset-4" : ""}`}
               >
