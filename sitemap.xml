@@ -86,9 +86,15 @@
 
   <url>
     <loc>https://firmtitletb.com/blog</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-19</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://firmtitletb.com/blog/clearwater-beach</loc>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://firmtitletb.com/blog/closed-410-s-armenia</loc>
