@@ -13,12 +13,12 @@ const Index = () => {
     <div className="min-h-screen flex flex-col relative">
       <Navbar />
 
-      {/* Firm Title Logo - Desktop only */}
+      {/* Firm Title Logo */}
       <img
         src={`${import.meta.env.BASE_URL}Firm%20Title%20logo%20-%20blue.jpg`}
         alt="Firm Title Logo"
-        className="hidden md:block absolute top-20 right-8 w-28 z-40"
-        style={{ pointerEvents: 'none' }}
+        className="absolute top-20 z-40 w-20 md:w-28"
+        style={{ pointerEvents: 'none', right: isMobile ? '0.75rem' : '2rem' }}
       />
 
       <main className="flex-grow">
