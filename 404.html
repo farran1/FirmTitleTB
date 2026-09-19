@@ -6,26 +6,15 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>FirmTitleTB</title>
-    <meta
-      name="description"
-      content="Title Firm - Professional Title Services"
-    />
-    <meta name="author" content="Title Firm" />
+    <title>Page Not Found | Firm Title TB</title>
+    <meta name="robots" content="noindex" />
+    <meta name="author" content="Firm Title TB, LLC" />
 
     <!-- Google Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap"
       rel="stylesheet"
     />
-
-    <!-- Social tags -->
-    <meta property="og:title" content="Title Firm" />
-    <meta
-      property="og:description"
-      content="Professional Title Services"
-    />
-    <meta property="og:type" content="website" />
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" />
@@ -45,16 +34,12 @@
     </script>
   </head>
   <body>
+    <!--
+      This page only runs the redirect above; the app is served from the
+      rewritten URL. It intentionally loads no bundle — /src/main.tsx does
+      not exist in a production build.
+    -->
     <div id="root"></div>
-
-    <!-- Third-party script -->
-    <script
-      src="https://cdn.gpteng.co/gptengineer.js"
-      type="module"
-    ></script>
-
-    <!-- YOUR app entry -->
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
 
