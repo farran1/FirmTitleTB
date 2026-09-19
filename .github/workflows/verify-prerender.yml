@@ -1,0 +1,94 @@
+name: Verify Pre-rendered Pages
+
+on:
+  push:
+    branches: [gh-pages]
+  pull_request:
+    branches: [gh-pages]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every route has a pre-rendered page
+        run: |
+          missing=0
+          for page in index.html contact/index.html videos/index.html \
+                      calculators/index.html calculators/buyer/index.html \
+                      calculators/closing/index.html homestead/index.html \
+                      privacy/index.html sms-opt-in/index.html blog/index.html; do
+            if [ ! -f "$page" ]; then
+              echo "::error file=$page::Missing pre-rendered page: $page"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Pages carry their own title and meta description
+        run: |
+          bad=0
+          for page in index.html contact/index.html videos/index.html \
+                      calculators/index.html homestead/index.html; do
+            title=$(grep -o '<title>[^<]*</title>' "$page" | head -1)
+            if [ -z "$title" ] || [ "$title" = "<title>FirmTitleTB</title>" ]; then
+              echo "::error file=$page::Missing or placeholder <title>: $title"
+              bad=1
+            fi
+            if ! grep -q '<meta name="description"' "$page"; then
+              echo "::error file=$page::Missing <meta name=\"description\">"
+              bad=1
+            fi
+            if grep -q 'content="Title Firm - Professional Title Services"' "$page"; then
+              echo "::error file=$page::Placeholder meta description from the builder export"
+              bad=1
+            fi
+          done
+          exit $bad
+
+      - name: No HTML points at a build asset that does not exist
+        run: |
+          python3 - <<'EOF'
+          import pathlib, re, sys
+          dangling = False
+          for page in sorted(pathlib.Path(".").rglob("*.html")):
+              if ".git" in page.parts:
+                  continue
+              for ref in re.findall(r'(?:src|href)="(/assets/[^"]+)"',
+                                    page.read_text(encoding="utf8")):
+                  if not pathlib.Path(ref.lstrip("/")).exists():
+                      print(f"::error file={page}::References missing asset {ref}")
+                      dangling = True
+          sys.exit(1 if dangling else 0)
+          EOF
+
+      - name: Sitemap and robots are intact
+        run: |
+          fail=0
+          [ -f sitemap.xml ] || { echo "::error::sitemap.xml is missing"; fail=1; }
+          python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('sitemap.xml')" \
+            || { echo "::error file=sitemap.xml::Not well-formed XML"; fail=1; }
+          grep -q '^Sitemap: https://firmtitletb.com/sitemap.xml$' robots.txt \
+            || { echo "::error file=robots.txt::Missing the Sitemap: directive"; fail=1; }
+          [ -f scripts/generate-blog.js ] \
+            || { echo "::error::scripts/generate-blog.js is missing — the daily blog workflow will fail"; fail=1; }
+          exit $fail
+
+      - name: Every sitemap URL resolves to a file on disk
+        run: |
+          fail=0
+          if [ ! -f sitemap.xml ]; then
+            echo "::error::sitemap.xml is missing — cannot verify its URLs"
+            exit 1
+          fi
+          for loc in $(grep -o '<loc>[^<]*</loc>' sitemap.xml | sed 's/<[^>]*>//g'); do
+            path="${loc#https://firmtitletb.com/}"
+            [ -z "$path" ] && path="index.html" || path="${path%/}/index.html"
+            if [ ! -f "$path" ]; then
+              echo "::error file=sitemap.xml::$loc has no page at $path"
+              fail=1
+            fi
+          done
+          exit $fail
