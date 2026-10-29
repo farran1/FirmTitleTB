@@ -12,15 +12,19 @@ One row per post. Row 1 holds the column names; the columns can be in any order.
 
 | Column    | Required | Notes |
 |-----------|----------|-------|
-| Title     | yes      | The headline. Make it descriptive: it is what Google shows. |
+| Title     | yes      | The headline Google shows. If it's just a label (lowercase, a repeat like "Development Update", or a closing without an address), the blog uses the post's first line as the headline instead. |
 | Slug      | yes      | The web address: `closing-costs-explained` becomes `/blog/closing-costs-explained`. Letters, numbers and dashes. Don't change it after publishing, or old links break. |
 | Content   | yes      | The post. A blank line starts a new paragraph. `**bold**`, `[link text](https://…)`, plain `https://` links, `## Heading` and `- ` bullet lines all work. |
 | Date      | yes      | Publish date. A future date schedules the post: it goes live that morning. |
 | Published | yes      | Tick the checkbox (or type TRUE) to publish. Untick to take a post down. |
 | Excerpt   | no       | One or two sentences shown on the blog page and in Google and social previews. |
 | Image     | no       | An `https://` image link. Google Drive share links work if the image is shared publicly. |
-| Category  | no       | e.g. *Closings*, *Development Update*, *Title Tips*. Adds filter buttons to the blog page. |
+| Category  | no       | Topic filter on the blog page. If left blank, posts are sorted automatically into *Recent Closings*, *Tampa Bay Development*, *Firm News* or *Tips & Insights*. |
 | Author    | no       | Defaults to Firm Title TB. |
+
+Closing posts that start with `CLOSED`, then a `📍 address` line, a `$price` line
+and a `beds | baths | sqft` line get a listing card and a price cover automatically.
+Posts without an Image get a branded cover built from the post.
 
 Deleting a row, or unticking **Published**, removes the post on the next run. As a
 safety net, a run that would remove more than half the posts stops instead; if that

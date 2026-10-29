@@ -117,3 +117,27 @@ test('private-sheet rows (Sheets API values) parse like the public feed', () => 
   assert.equal(posts[0].date, '2026-06-08');
   assert.equal(posts[0].category, 'Closings');
 });
+
+test('label-style titles get a headline from the post, real titles are kept', () => {
+  const [hotel, closing, real, long] = toPosts([
+    row({ Slug: 'hotel', Title: 'development Update', Date: '2026-05-04', Content: '🚨 Tampa Hospitality Expansion News 🚨\n\nHotel Ora is growing.' }),
+    row({ Slug: 'mcelroy', Title: 'closing', Date: '2026-05-03', Content: 'CLOSED💥\n\n📍 4810 W McElroy Ave Unit 17, Tampa, FL 33611\n$568,500\n2 beds | 3 baths\n\nGreat sale.' }),
+    row({ Slug: 'guide', Title: 'How Title Insurance Works', Date: '2026-05-02', Content: 'Intro paragraph here.' }),
+    row({ Slug: 'month', Title: 'holiday', Date: '2026-05-01', Content: 'June is National Homeownership Month, a great reminder of what it really means to own a place you can call your own.\n\nMore.' }),
+  ]);
+  assert.equal(hotel.displayTitle, 'Tampa Hospitality Expansion News');
+  assert.equal(hotel.body, 'Hotel Ora is growing.');
+  assert.equal(hotel.category, 'Tampa Bay Development');
+  assert.equal(closing.displayTitle, 'Closed: 4810 W McElroy Ave Unit 17, Tampa, FL 33611');
+  assert.equal(closing.category, 'Recent Closings');
+  assert.ok(closing.body.startsWith('📍'), 'the bare "CLOSED" opener is dropped');
+  assert.ok(blog.contentToHtml(closing.body).includes('<p class="listing-price">$568,500</p>'));
+  assert.equal(real.displayTitle, 'How Title Insurance Works');
+  assert.equal(long.displayTitle, 'June is National Homeownership Month');
+  assert.ok(long.body.startsWith('June is National'), 'a shortened headline keeps the full sentence in the body');
+});
+
+test('a Category column wins over the automatic category', () => {
+  const [post] = toPosts([row({ Title: 'development Update', Category: 'Market News' })]);
+  assert.equal(post.category, 'Market News');
+});

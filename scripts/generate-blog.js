@@ -367,7 +367,108 @@ function rowsToPosts(rows, today = todayInTimeZone()) {
     bySlug.set(key, post);
   });
 
-  return [...bySlug.values()].sort((a, b) => b.date.localeCompare(a.date) || a.slug.localeCompare(b.slug));
+  return enrichPosts([...bySlug.values()].sort((a, b) => b.date.localeCompare(a.date) || a.slug.localeCompare(b.slug)));
+}
+
+/* ------------------------------------------------------------------ headlines & categories */
+
+// Many posts were written for LinkedIn: the sheet Title is a short label ("closing",
+// "development Update") and the real headline is the post's first line. Use that line
+// as the headline when the Title is just a label, so pages read well and rank in Google.
+const EMOJI = /[\p{Extended_Pictographic}\p{Regional_Indicator}]\uFE0F?(\u200D[\p{Extended_Pictographic}]\uFE0F?)*/gu;
+
+function cleanLine(line) {
+  return String(line)
+    .replace(EMOJI, '')
+    .replace(/[\u200D\uFE0F]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s\-–—:|•·*#]+|[\s\-–—:|•·*]+$/g, '')
+    .trim();
+}
+
+function sentenceCase(text) {
+  return text === text.toUpperCase() ? text.charAt(0) + text.slice(1).toLowerCase() : text;
+}
+
+const CLOSINGS = 'Recent Closings';
+const DEVELOPMENT = 'Tampa Bay Development';
+const FIRM_NEWS = 'Firm News';
+const TIPS = 'Tips & Insights';
+
+function inferCategory(post) {
+  const head = `${post.title} ${post.content.slice(0, 160)}`.toLowerCase();
+  if (/^\W*closed\b/i.test(post.content) || /\bclosed\b/.test(post.title.toLowerCase())) return CLOSINGS;
+  if (/\bdevelopment\b/.test(post.title.toLowerCase())) return DEVELOPMENT;
+  if (/\bhiring\b|we.re growing|homeownership month|\bholiday\b/.test(head)) return FIRM_NEWS;
+  return TIPS;
+}
+
+/** Returns { text, paragraphUsed } for the post's opening line, or null if it isn't headline-shaped. */
+function headlineFromContent(content) {
+  const paragraphs = content.split(/\n\s*\n/).slice(0, 2);
+  const lines = [];
+  paragraphs.forEach((para, p) => para.split('\n').forEach((raw) => {
+    const clean = cleanLine(raw);
+    if (clean) lines.push({ clean, p, total: para.split('\n').filter((l) => cleanLine(l)).length });
+  }));
+  const i = lines.findIndex((l) => l.clean.length >= 15);
+  if (i === -1) return null;
+  let text = lines[i].clean;
+  const shortened = text.length > 110;
+  if (shortened) {
+    const clause = text.match(/^(.{15,100}?)(?:[,;:—–]|\s-\s|\.\s)/);
+    if (!clause) return null;
+    text = clause[1];
+  }
+  text = text.replace(/(?<!\.)\.$/, '');
+  const prev = lines[i - 1];
+  const prefixed = Boolean(prev && prev.clean.length <= 20);
+  if (prefixed) text = `${sentenceCase(prev.clean)}: ${text}`;
+  // The headline repeats the opening paragraph when that paragraph was only the headline
+  // (or only a one-word opener like "CLOSED 💥"), so drop it from the body.
+  const standalone = i === 0 && lines[0].p === 0 && lines[0].total === 1 && !shortened;
+  const opener = prefixed && i === 1 && prev.p === 0 && prev.total === 1;
+  return { text, paragraphUsed: standalone || opener ? 0 : null };
+}
+
+function enrichPosts(posts) {
+  const titleCounts = new Map();
+  posts.forEach((p) => titleCounts.set(p.title.toLowerCase(), (titleCounts.get(p.title.toLowerCase()) || 0) + 1));
+  const norm = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+  return posts.map((post) => {
+    const category = post.category || inferCategory(post);
+    const isLabel = norm(post.title) === norm(post.slug) ||
+      /^[a-z]/.test(post.title.trim()) ||
+      titleCounts.get(post.title.toLowerCase()) > 1 ||
+      post.title.trim().split(/\s+/).length === 1 ||
+      (category === CLOSINGS && !/\d/.test(post.title));
+    let displayTitle = post.title;
+    let body = post.content;
+    if (isLabel) {
+      const headline = headlineFromContent(post.content);
+      if (headline) {
+        displayTitle = headline.text;
+        if (headline.paragraphUsed === 0) body = post.content.split(/\n\s*\n/).slice(1).join('\n\n') || post.content;
+        console.log(`Headline for /blog/${post.slug}: "${displayTitle}" (sheet Title "${post.title}" looks like a label)`);
+      }
+    }
+    return { ...post, category, displayTitle, body };
+  });
+}
+
+/** Visual cover for posts without an Image: listing details for closings, otherwise the post's emoji. */
+function coverFor(post) {
+  if (post.category === CLOSINGS) {
+    const price = (post.content.match(/\$\s?\d{1,3}(?:,\d{3})+/) || [])[0];
+    const addressLine = post.content.split('\n').find((l) => l.includes('📍'));
+    const address = addressLine ? cleanLine(addressLine).split(',')[0] : '';
+    const city = addressLine ? (cleanLine(addressLine).split(',')[1] || '').trim() : '';
+    const facts = (post.content.match(/\d+\s*beds?\s*\|[^\n]+/i) || [])[0];
+    if (price) return { kind: 'closing', price: price.replace(/\s/g, ''), address, city, facts: facts ? facts.trim() : '' };
+  }
+  const emoji = (post.content.match(EMOJI) || [])[0] || '';
+  return { kind: 'emoji', emoji };
 }
 
 /* ------------------------------------------------------------------ text helpers */
@@ -407,7 +508,13 @@ function truncate(text, max) {
 }
 
 function postSummary(post, max = 160) {
-  return truncate(post.excerpt ? plainText(post.excerpt) : plainText(post.content), max);
+  if (post.excerpt) return truncate(plainText(post.excerpt), max);
+  // Skip listing-detail blocks (address / price / beds) and hashtag lines; they read badly as a summary.
+  const prose = String(post.body || post.content).split(/\n\s*\n/)
+    .filter((para) => !(para.includes('📍') && /\$\s?\d/.test(para)))
+    .filter((para) => !/^(\s*#[\p{L}\p{N}_]+)+\s*$/u.test(para.replace(/\n/g, ' ')))
+    .join('\n\n');
+  return truncate(plainText(prose || post.body || post.content), max);
 }
 
 function readingMinutes(content) {
@@ -447,6 +554,21 @@ function link(href, label) {
   return `<a href="${escapeHtml(href)}"${attrs}>${label}</a>`;
 }
 
+/** A closing's "📍 address / $price / beds | baths" block, rendered as a listing summary. */
+function listingHtml(lines) {
+  const addressLine = lines.find((l) => l.includes('📍'));
+  const priceLine = lines.find((l) => /^\s*\$\s?\d{1,3}(,\d{3})+\s*$/.test(l));
+  if (!addressLine || !priceLine || lines.length > 4) return null;
+  const facts = lines.filter((l) => l !== addressLine && l !== priceLine)
+    .flatMap((l) => l.split('|')).map((f) => f.trim()).filter(Boolean);
+  return `<div class="listing">
+  <p class="listing-label">Closed</p>
+  <p class="listing-price">${escapeHtml(priceLine.trim())}</p>
+  <p class="listing-address">${escapeHtml(cleanLine(addressLine))}</p>${facts.length ? `
+  <ul class="listing-facts">${facts.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
+</div>`;
+}
+
 function contentToHtml(content) {
   return String(content)
     .split(/\n\s*\n/)
@@ -459,8 +581,13 @@ function contentToHtml(content) {
         return `<h${level}>${renderInline(heading[2])}</h${level}>`;
       }
       const lines = block.split('\n');
+      const listing = listingHtml(lines);
+      if (listing) return listing;
       if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
         return `<ul>\n${lines.map((l) => `  <li>${renderInline(l.replace(/^\s*[-*]\s+/, ''))}</li>`).join('\n')}\n</ul>`;
+      }
+      if (lines.every((l) => /^(\s*#[\p{L}\p{N}_]+)+\s*$/u.test(l))) {
+        return `<p class="hashtags">${escapeHtml(lines.join(' ').replace(/\s+/g, ' ').trim())}</p>`;
       }
       return `<p>${lines.map(renderInline).join('<br>\n')}</p>`;
     })
@@ -469,8 +596,9 @@ function contentToHtml(content) {
 
 /* ------------------------------------------------------------------ templates */
 
-// Mirrors the site's React Navbar/Footer (src/components/Navbar.tsx on main) so the
-// blog is indistinguishable from the rest of firmtitletb.com.
+// The header, drawer, footer, logo placement and hero photos mirror the site's React
+// components (Navbar.tsx, Footer.tsx, Hero.tsx on main), so the blog reads as part of
+// firmtitletb.com rather than a separate site.
 const NAV_LINKS = [
   ['/', 'Home'],
   ['/videos', 'Videos'],
@@ -491,13 +619,38 @@ const SOCIAL_LINKS = [
 const MENU_ICON = `<svg ${ICON_ATTRS}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`;
 const CLOSE_ICON = `<svg ${ICON_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
 const ARROW_LEFT = `<svg ${ICON_ATTRS}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;
+const ARROW_RIGHT = `<svg ${ICON_ATTRS}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
+const SEARCH_ICON = `<svg ${ICON_ATTRS}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+const PHONE_ICON = `<svg ${ICON_ATTRS}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+const LINK_ICON = `<svg ${ICON_ATTRS}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+const MAIL_ICON = `<svg ${ICON_ATTRS}><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+
+// Site hero photos (also used on the homepage), matched to each kind of post.
+const HERO_PHOTOS = {
+  index: '/hero/yacht.jpg',
+  [CLOSINGS]: '/hero/waterst.jpg',
+  [DEVELOPMENT]: '/hero/yacht.jpg',
+  [FIRM_NEWS]: '/hero/golf.jpg',
+  [TIPS]: '/hero/amphitheater.jpg',
+};
+const EXTRA_PHOTOS = ['/hero/ybor.jpg', '/hero/amphitheater.jpg', '/hero/waterst.jpg', '/hero/golf.jpg'];
+
+function heroPhoto(post) {
+  if (HERO_PHOTOS[post.category]) return HERO_PHOTOS[post.category];
+  const hash = [...post.category].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return EXTRA_PHOTOS[hash % EXTRA_PHOTOS.length];
+}
+
+function categoryClass(category) {
+  return { [CLOSINGS]: 'closings', [DEVELOPMENT]: 'development', [FIRM_NEWS]: 'news', [TIPS]: 'tips' }[category] || 'custom';
+}
 
 function navLinks(cls) {
   return NAV_LINKS.map(([href, label]) =>
     `<a class="${cls}" href="${href}"${href === '/blog' ? ' aria-current="page"' : ''}>${label}</a>`).join('');
 }
 
-function layout({ title, description, canonical, ogType, image, headExtra = '', body, cssHref }) {
+function layout({ title, description, canonical, ogType, image, headExtra = '', body, cssHref, preload }) {
   const ogImage = image || LOGO_URL;
   const card = image ? 'summary_large_image' : 'summary';
   const social = SOCIAL_LINKS.map(([href, label, svg]) =>
@@ -511,6 +664,7 @@ function layout({ title, description, canonical, ogType, image, headExtra = '', 
     <meta name="description" content="${escapeHtml(description)}" />
     <meta name="author" content="Firm Title TB, LLC" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#475569" />
     <link rel="canonical" href="${canonical}" />
     <link rel="alternate" type="application/rss+xml" title="Firm Title TB Blog" href="${SITE_URL}/blog/feed.xml" />
 
@@ -532,8 +686,9 @@ ${headExtra}
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="${cssHref}" />
+    ${preload ? `<link rel="preload" as="image" href="${preload}" />` : ''}
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" />
@@ -556,6 +711,7 @@ ${headExtra}
       <button type="button" class="drawer-close" aria-label="Close menu">${CLOSE_ICON}</button>
       ${navLinks('drawer-link')}
     </nav>
+    <img class="hero-logo" src="/Firm%20Title%20logo%20-%20blue.jpg" alt="" aria-hidden="true" />
 
 ${body}
 
@@ -580,6 +736,7 @@ ${body}
         overlay.addEventListener('click', function () { set(false); });
         drawer.querySelector('.drawer-close').addEventListener('click', function () { set(false); });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !drawer.hidden) set(false); });
+
       })();
     </script>
   </body>
@@ -587,92 +744,108 @@ ${body}
 `.replace(/^[ \t]+\n/gm, ''); // drop lines left blank by optional fragments
 }
 
-function postMeta(post, { author = false } = {}) {
-  return `${author ? `${escapeHtml(post.author)} &middot; ` : ''}<time datetime="${post.date}">${displayDate(post.date)}</time> &middot; ${readingMinutes(post.content)} min read`;
+function postMeta(post) {
+  return `<time datetime="${post.date}">${displayDate(post.date)}</time><span aria-hidden="true">&middot;</span>${readingMinutes(post.body)} min read`;
 }
 
-function featuredCard(post) {
-  return `        <article class="card card-featured${post.image ? ' has-media' : ''}" data-category="${escapeHtml(post.category.toLowerCase())}" data-search="${searchText(post)}">
-          ${post.image ? `<div class="card-media"><img src="${escapeHtml(post.image)}" alt="" decoding="async" /></div>` : ''}
-          <div class="card-body">
-            <p class="eyebrow">Latest${post.category ? ` &middot; ${escapeHtml(post.category)}` : ''}</p>
-            <h2 class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.title)}</a></h2>
-            <p class="meta">${postMeta(post)}</p>
-            <p class="card-excerpt">${escapeHtml(postSummary(post, 300))}</p>
-            <span class="read-more" aria-hidden="true">Read article &rarr;</span>
-          </div>
-        </article>`;
-}
-
-function postCard(post) {
-  return `        <article class="card${post.image ? ' has-media' : ''}" data-category="${escapeHtml(post.category.toLowerCase())}" data-search="${searchText(post)}">
-          ${post.image ? `<div class="card-media"><img src="${escapeHtml(post.image)}" alt="" loading="lazy" decoding="async" /></div>` : ''}
-          <div class="card-body">
-            ${post.category ? `<p class="eyebrow">${escapeHtml(post.category)}</p>` : ''}
-            <h2 class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.title)}</a></h2>
-            <p class="meta">${postMeta(post)}</p>
-            <p class="card-excerpt">${escapeHtml(postSummary(post, 180))}</p>
-            <span class="read-more" aria-hidden="true">Read more &rarr;</span>
-          </div>
-        </article>`;
+/** Card artwork: the post's own image, or a branded cover built from the post itself. */
+function coverHtml(post, { eager = false } = {}) {
+  if (post.image) {
+    return `<div class="cover cover-photo"><img src="${escapeHtml(post.image)}" alt=""${eager ? '' : ' loading="lazy"'} decoding="async" /></div>`;
+  }
+  const c = coverFor(post);
+  const label = `<span class="cover-label">${escapeHtml(post.category)}</span>`;
+  if (c.kind === 'closing') {
+    return `<div class="cover cover-${categoryClass(post.category)}" aria-hidden="true">
+            ${label}
+            <span class="cover-stamp">Closed</span>
+            <span class="cover-price">${escapeHtml(c.price)}</span>
+            <span class="cover-sub">${escapeHtml([c.address, c.city].filter(Boolean).join(' · '))}</span>
+          </div>`;
+  }
+  return `<div class="cover cover-${categoryClass(post.category)}" aria-hidden="true">
+            ${label}
+            <span class="cover-emoji">${c.emoji || '🏡'}</span>
+          </div>`;
 }
 
 function searchText(post) {
-  return escapeHtml(`${post.title} ${post.category} ${plainText(post.content)}`.toLowerCase().slice(0, 2000));
+  return escapeHtml(`${post.displayTitle} ${post.title} ${post.category} ${plainText(post.content)}`.toLowerCase().slice(0, 2000));
 }
 
-function ctaBlock(question = 'Have questions about your closing? We’re here to help.') {
-  return `<div class="cta">
-          <p>${question}</p>
-          <div class="cta-actions">
-            <a class="btn-primary" href="/contact">Contact Firm Title TB</a>
-            <a class="btn-outline" href="tel:${PHONE_TEL}">Call ${PHONE_DISPLAY}</a>
+function postCard(post, { featured = false, filterable = true } = {}) {
+  const attrs = filterable ? ` data-category="${escapeHtml(post.category.toLowerCase())}" data-search="${searchText(post)}"` : '';
+  return `        <article class="card${featured ? ' card-featured' : ''}"${attrs}>
+          ${coverHtml(post, { eager: featured })}
+          <div class="card-body">
+            <p class="card-kicker">${featured ? '<span class="badge">Latest</span>' : ''}<span>${escapeHtml(post.category)}</span></p>
+            <h${featured ? 2 : 3} class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.displayTitle)}</a></h${featured ? 2 : 3}>
+            <p class="card-excerpt">${escapeHtml(postSummary(post, featured ? 260 : 150))}</p>
+            <p class="card-footer"><span class="meta">${postMeta(post)}</span><span class="read-more" aria-hidden="true">${featured ? 'Read article' : 'Read'} ${ARROW_RIGHT}</span></p>
           </div>
-        </div>`;
+        </article>`;
+}
+
+function ctaBand() {
+  return `<section class="cta-band" aria-labelledby="cta-heading">
+      <div class="cta-inner">
+        <div>
+          <p class="eyebrow eyebrow-light">Firm Title TB &middot; South Tampa</p>
+          <h2 id="cta-heading">Close on your phone in 15 minutes.</h2>
+          <p>Attorney-owned title company serving buyers, sellers and agents across Tampa Bay, with Remote Online Notary and CertiFID wire-fraud protection on every closing.</p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href="/contact">Contact Firm Title TB</a>
+          <a class="btn btn-ghost" href="tel:${PHONE_TEL}">${PHONE_ICON}${PHONE_DISPLAY}</a>
+        </div>
+      </div>
+    </section>`;
 }
 
 function generateBlogListHtml(posts, cssHref) {
-  const categories = [...new Set(posts.map((p) => p.category).filter(Boolean))].sort();
-  const filters = categories.length > 1 ? `
-          <div class="filters" role="group" aria-label="Filter posts by category">
-            <button type="button" class="chip" data-filter="" aria-pressed="true">All</button>
-            ${categories.map((c) => `<button type="button" class="chip" data-filter="${escapeHtml(c.toLowerCase())}" aria-pressed="false">${escapeHtml(c)}</button>`).join('\n            ')}
+  const counts = new Map();
+  posts.forEach((p) => counts.set(p.category, (counts.get(p.category) || 0) + 1));
+  const categories = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || a.localeCompare(b));
+  const chips = categories.length > 1 ? `
+          <div class="filters" role="group" aria-label="Filter posts by topic">
+            <button type="button" class="chip" data-filter="" aria-pressed="true">All <span>${posts.length}</span></button>
+            ${categories.map((c) => `<button type="button" class="chip" data-filter="${escapeHtml(c.toLowerCase())}" aria-pressed="false">${escapeHtml(c)} <span>${counts.get(c)}</span></button>`).join('\n            ')}
           </div>` : '';
 
   const [latest, ...rest] = posts;
-  const body = `    <main id="main" class="page">
-      <div class="container container-wide">
-        <header class="page-header">
-          <h1>Blog</h1>
-          <p class="page-subtitle">Closings, title insurance, and Tampa Bay real estate news from Firm Title TB.</p>
-        </header>
+  const body = `    <main id="main">
+      <section class="hero hero-index" style="--hero-image:url('${HERO_PHOTOS.index}')">
+        <div class="hero-inner">
+          <p class="eyebrow eyebrow-light">The Firm Title Blog</p>
+          <h1>Title insight &amp; Tampa Bay real estate news</h1>
+          <p class="hero-lede">Recent closings, development updates, and plain-English answers to title and closing questions &mdash; from an attorney-owned title company in South Tampa.</p>
+        </div>
+      </section>
 
-        <div class="toolbar" hidden>
+      <section class="blog-section" aria-label="Blog posts">
+        <div class="toolbar">${chips}
           <label class="search">
-            <svg ${ICON_ATTRS}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            ${SEARCH_ICON}
             <span class="visually-hidden">Search posts</span>
             <input type="search" placeholder="Search posts" autocomplete="off" />
-          </label>${filters}
+          </label>
         </div>
-        <p class="empty" hidden>No posts match your search.</p>
+        <p class="empty" hidden>No posts match your search. <button type="button" class="link-button" data-reset>Show all posts</button></p>
 
-${latest ? featuredCard(latest) : '        <p class="empty">No posts yet. Check back soon!</p>'}
+${latest ? postCard(latest, { featured: true }) : '        <p class="empty">No posts yet. Check back soon!</p>'}
 ${rest.length ? `        <div class="card-grid">
-${rest.map(postCard).join('\n')}
+${rest.map((p) => postCard(p)).join('\n')}
         </div>` : ''}
+      </section>
 
-        ${ctaBlock()}
-      </div>
+      ${ctaBand()}
     </main>
     <script>
       (function () {
-        var cards = [].slice.call(document.querySelectorAll('.card'));
-        var toolbar = document.querySelector('.toolbar');
-        if (cards.length < 4) return;
-        toolbar.hidden = false;
-        var input = toolbar.querySelector('input');
-        var filters = toolbar.querySelector('.filters');
-        var empty = document.querySelector('.page .empty');
+        var cards = [].slice.call(document.querySelectorAll('.card[data-search]'));
+        var input = document.querySelector('.search input');
+        var filters = document.querySelector('.filters');
+        var empty = document.querySelector('.blog-section > .empty');
         var category = '';
         function apply() {
           var q = input.value.trim().toLowerCase();
@@ -685,15 +858,21 @@ ${rest.map(postCard).join('\n')}
           });
           empty.hidden = shown !== 0;
         }
-        input.addEventListener('input', apply);
-        if (filters) filters.addEventListener('click', function (e) {
-          var btn = e.target.closest('[data-filter]');
-          if (!btn) return;
+        function choose(btn) {
           category = btn.getAttribute('data-filter');
           [].forEach.call(filters.querySelectorAll('[data-filter]'), function (b) {
             b.setAttribute('aria-pressed', String(b === btn));
           });
           apply();
+        }
+        input.addEventListener('input', apply);
+        if (filters) filters.addEventListener('click', function (e) {
+          var btn = e.target.closest('[data-filter]');
+          if (btn) choose(btn);
+        });
+        empty.querySelector('[data-reset]').addEventListener('click', function () {
+          input.value = '';
+          if (filters) choose(filters.querySelector('[data-filter=""]')); else apply();
         });
       })();
     </script>`;
@@ -709,7 +888,7 @@ ${jsonLd({
     publisher: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL, logo: { '@type': 'ImageObject', url: LOGO_URL } },
     blogPost: posts.slice(0, 20).map((p) => ({
       '@type': 'BlogPosting',
-      headline: p.title,
+      headline: p.displayTitle,
       url: `${SITE_URL}/blog/${p.slug}`,
       datePublished: p.date,
     })),
@@ -719,83 +898,109 @@ ${jsonLd({
 
   return layout({
     title: 'Blog | Firm Title TB — Title Company in Tampa, FL',
-    description: 'Read the latest from Firm Title TB in Tampa, FL. Tips on closings, title insurance, RON, 1031 exchanges, and real estate in Tampa Bay.',
+    description: 'Recent closings, Tampa Bay development news, and title and closing tips from Firm Title TB, an attorney-owned title company in South Tampa.',
     canonical: `${SITE_URL}/blog`,
     ogType: 'website',
     headExtra,
     body,
     cssHref,
+    preload: HERO_PHOTOS.index,
   });
 }
 
 function shareLinks(post) {
-  const url = encodeURIComponent(`${SITE_URL}/blog/${post.slug}`);
-  const text = encodeURIComponent(post.title);
+  const url = `${SITE_URL}/blog/${post.slug}`;
+  const u = encodeURIComponent(url);
+  const t = encodeURIComponent(post.displayTitle);
+  const fb = SOCIAL_LINKS[0][2];
+  const li = SOCIAL_LINKS[4][2];
   return `<div class="share">
-          <span class="share-label">Share this post</span>
-          <div class="share-buttons">
-            <a href="https://www.facebook.com/sharer/sharer.php?u=${url}" target="_blank" rel="noopener noreferrer">Facebook</a>
-            <a href="https://www.linkedin.com/sharing/share-offsite/?url=${url}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-            <a href="https://twitter.com/intent/tweet?url=${url}&amp;text=${text}" target="_blank" rel="noopener noreferrer">X</a>
-            <a href="mailto:?subject=${text}&amp;body=${url}">Email</a>
-          </div>
-        </div>`;
+            <span class="share-label">Share</span>
+            <a href="https://www.linkedin.com/sharing/share-offsite/?url=${u}" target="_blank" rel="noopener noreferrer" aria-label="Share on LinkedIn">${li}</a>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=${u}" target="_blank" rel="noopener noreferrer" aria-label="Share on Facebook">${fb}</a>
+            <a href="mailto:?subject=${t}&amp;body=${u}" aria-label="Share by email">${MAIL_ICON}</a>
+            <button type="button" class="copy-link" data-url="${escapeHtml(url)}" aria-label="Copy link">${LINK_ICON}<span>Copy link</span></button>
+          </div>`;
 }
 
 function generatePostHtml(post, posts, cssHref) {
   const index = posts.indexOf(post);
   const newer = posts[index - 1];
   const older = posts[index + 1];
-  const sameCategory = (p) => Boolean(post.category) && p.category === post.category;
+  const sameCategory = (p) => p.category === post.category;
   const related = posts
-    .filter((p) => p !== post && p !== newer && p !== older)
+    .filter((p) => p !== post)
     .sort((a, b) => Number(sameCategory(b)) - Number(sameCategory(a)))
     .slice(0, 3);
   const url = `${SITE_URL}/blog/${post.slug}`;
   const description = postSummary(post, 160);
+  const photo = post.image || heroPhoto(post);
 
   const pager = (newer || older) ? `
         <nav class="pager" aria-label="Previous and next posts">
-          ${older ? `<a class="pager-link" href="/blog/${older.slug}"><span>&larr; Previous post</span>${escapeHtml(older.title)}</a>` : '<span></span>'}
-          ${newer ? `<a class="pager-link pager-next" href="/blog/${newer.slug}"><span>Next post &rarr;</span>${escapeHtml(newer.title)}</a>` : '<span></span>'}
+          ${older ? `<a class="pager-link" href="/blog/${older.slug}"><span>${ARROW_LEFT}Previous</span>${escapeHtml(older.displayTitle)}</a>` : '<span></span>'}
+          ${newer ? `<a class="pager-link pager-next" href="/blog/${newer.slug}"><span>Next${ARROW_RIGHT}</span>${escapeHtml(newer.displayTitle)}</a>` : '<span></span>'}
         </nav>` : '';
 
   const relatedHtml = related.length ? `
-        <section class="related" aria-labelledby="related-heading">
-          <h2 id="related-heading">More From the Blog</h2>
-          ${related.map((p) => `<a class="row-link" href="/blog/${p.slug}">
-            <span class="row-text"><span class="row-title">${escapeHtml(p.title)}</span><span class="row-meta">${displayDate(p.date)}</span></span>
-            <span class="row-action" aria-hidden="true">Read &rarr;</span>
-          </a>`).join('\n          ')}
-        </section>` : '';
+      <section class="blog-section related" aria-labelledby="related-heading">
+        <div class="section-heading">
+          <h2 id="related-heading">Keep reading</h2>
+          <a href="/blog">All posts ${ARROW_RIGHT}</a>
+        </div>
+        <div class="card-grid">
+${related.map((p) => postCard(p, { filterable: false })).join('\n')}
+        </div>
+      </section>` : '';
 
-  const body = `    <main id="main" class="page">
-      <div class="container">
-        <a class="back-link" href="/blog">${ARROW_LEFT}Back to Blog</a>
-        <article>
-          <header class="page-header">
-            ${post.category ? `<p class="eyebrow">${escapeHtml(post.category)}</p>` : ''}
-            <h1>${escapeHtml(post.title)}</h1>
-            <p class="page-subtitle">${postMeta(post, { author: true })}</p>
-          </header>
-          <div class="post-card">
-            ${post.image ? `<figure class="post-image"><img src="${escapeHtml(post.image)}" alt="" decoding="async" /></figure>` : ''}
-            <div class="prose">
-${contentToHtml(post.content)}
+  const body = `    <main id="main">
+      <section class="hero hero-post" style="--hero-image:url('${escapeHtml(photo)}')">
+        <div class="hero-inner hero-inner-narrow">
+          <a class="back-link" href="/blog">${ARROW_LEFT}All posts</a>
+          <p class="hero-chip">${escapeHtml(post.category)}</p>
+          <h1>${escapeHtml(post.displayTitle)}</h1>
+          <p class="hero-meta">By ${escapeHtml(post.author)}<span aria-hidden="true">&middot;</span>${postMeta(post)}</p>
+        </div>
+      </section>
+
+      <div class="article-wrap">
+        <article class="article">
+          <div class="prose">
+${contentToHtml(post.body)}
+          </div>
+          <div class="article-footer">
+            <div class="about">
+              <img src="/Firm%20Title%20logo%20-%20blue.jpg" alt="Firm Title TB logo" width="56" height="56" loading="lazy" />
+              <div>
+                <p class="about-name">Firm Title TB</p>
+                <p class="about-text">Attorney-owned title company at 3502 Henderson Blvd, South Tampa. Questions about a closing? <a href="/contact">Get in touch</a>.</p>
+              </div>
             </div>
+            ${shareLinks(post)}
           </div>
         </article>
-        ${shareLinks(post)}
 ${pager}
+      </div>
 ${relatedHtml}
 
-        ${ctaBlock()}
-      </div>
-    </main>`;
+      ${ctaBand()}
+    </main>
+    <script>
+      (function () {
+        var btn = document.querySelector('.copy-link');
+        if (!btn || !navigator.clipboard) { if (btn) btn.hidden = true; return; }
+        btn.addEventListener('click', function () {
+          navigator.clipboard.writeText(btn.getAttribute('data-url')).then(function () {
+            btn.querySelector('span').textContent = 'Copied!';
+            setTimeout(function () { btn.querySelector('span').textContent = 'Copy link'; }, 2000);
+          });
+        });
+      })();
+    </script>`;
 
   const headExtra = `    <meta property="article:published_time" content="${post.date}" />
-    <meta property="article:author" content="${escapeHtml(post.author)}" />${post.category ? `
-    <meta property="article:section" content="${escapeHtml(post.category)}" />` : ''}
+    <meta property="article:author" content="${escapeHtml(post.author)}" />
+    <meta property="article:section" content="${escapeHtml(post.category)}" />
 
     <!-- Structured Data: BlogPosting -->
     <script type="application/ld+json">
@@ -804,13 +1009,13 @@ ${jsonLd({
     '@graph': [
       {
         '@type': 'BlogPosting',
-        headline: post.title,
+        headline: post.displayTitle,
         description,
         datePublished: post.date,
         dateModified: post.date,
-        image: post.image || LOGO_URL,
-        wordCount: plainText(post.content).split(' ').length,
-        ...(post.category ? { articleSection: post.category } : {}),
+        image: post.image || `${SITE_URL}${heroPhoto(post)}`,
+        wordCount: plainText(post.body).split(' ').length,
+        articleSection: post.category,
         author: post.author === DEFAULT_AUTHOR
           ? { '@type': 'Organization', name: SITE_NAME, url: SITE_URL }
           : { '@type': 'Person', name: post.author },
@@ -822,7 +1027,7 @@ ${jsonLd({
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
           { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
-          { '@type': 'ListItem', position: 3, name: post.title, item: url },
+          { '@type': 'ListItem', position: 3, name: post.displayTitle, item: url },
         ],
       },
     ],
@@ -831,7 +1036,7 @@ ${jsonLd({
 `;
 
   return layout({
-    title: `${post.title} | Firm Title TB Blog`,
+    title: `${post.displayTitle} | Firm Title TB`,
     description,
     canonical: url,
     ogType: 'article',
@@ -839,18 +1044,19 @@ ${jsonLd({
     headExtra,
     body,
     cssHref,
+    preload: post.image ? null : photo,
   });
 }
 
 function generateFeed(posts) {
   const items = posts.slice(0, FEED_SIZE).map((p) => `    <item>
-      <title>${escapeXml(p.title)}</title>
+      <title>${escapeXml(p.displayTitle)}</title>
       <link>${SITE_URL}/blog/${p.slug}</link>
       <guid isPermaLink="true">${SITE_URL}/blog/${p.slug}</guid>
-      <pubDate>${rfc822(p.date)}</pubDate>${p.category ? `
-      <category>${escapeXml(p.category)}</category>` : ''}
+      <pubDate>${rfc822(p.date)}</pubDate>
+      <category>${escapeXml(p.category)}</category>
       <description>${escapeXml(postSummary(p, 300))}</description>
-      <content:encoded><![CDATA[${contentToHtml(p.content).replace(/]]>/g, ']]]]><![CDATA[>')}]]></content:encoded>
+      <content:encoded><![CDATA[${contentToHtml(p.body).replace(/]]>/g, ']]]]><![CDATA[>')}]]></content:encoded>
     </item>`).join('\n');
   const updated = posts.length ? rfc822(posts[0].date) : rfc822('2026-01-01');
   return `<?xml version="1.0" encoding="UTF-8"?>
