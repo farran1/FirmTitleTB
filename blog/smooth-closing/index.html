@@ -89,8 +89,8 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/blog/blog.css?v=e4a66ab2e9" />
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/blog/blog.css?v=6cf2cd7ac7" />
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" />
@@ -99,30 +99,31 @@
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <div class="wrap header-inner">
-        <a class="brand" href="/">Firm Title TB</a>
-        <nav class="site-nav" aria-label="Main">
-          <a href="/">Home</a>
-          <a href="/videos">Videos</a>
-          <a href="/homestead">Homestead</a>
-          <a href="/contact">Contact</a>
-          <a href="/calculators">Calculators</a>
-          <a href="/blog" aria-current="page">Blog</a>
-        </nav>
-        <a class="header-phone" href="tel:+18138124949">(813) 812-4949</a>
+      <div class="nav-bar">
+        <div class="nav-mobile">
+          <button type="button" class="menu-button" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
+          <a class="nav-brand" href="/">Firm Title TB</a>
+        </div>
+        <nav class="nav-desktop" aria-label="Main"><a class="nav-link" href="/">Home</a><a class="nav-link" href="/videos">Videos</a><a class="nav-link" href="/homestead">Homestead</a><a class="nav-link" href="/contact">Contact</a><a class="nav-link" href="/calculators">Calculators</a><a class="nav-link" href="/blog" aria-current="page">Blog</a></nav>
+        <div class="nav-social"><a href="https://www.facebook.com/firmtitletampabay/" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a><a href="https://www.instagram.com/firmtitletb/" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg></a><a href="https://www.youtube.com/@FirmTitleTB" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg></a><a href="https://www.tiktok.com/@firmtitletb" target="_blank" rel="noopener noreferrer" aria-label="TikTok"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg></a><a href="https://www.linkedin.com/in/scott-farrell-0778266/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg></a></div>
       </div>
     </header>
+    <div class="drawer-overlay" hidden></div>
+    <nav class="drawer" id="drawer" aria-label="Menu" hidden>
+      <button type="button" class="drawer-close" aria-label="Close menu"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      <a class="drawer-link" href="/">Home</a><a class="drawer-link" href="/videos">Videos</a><a class="drawer-link" href="/homestead">Homestead</a><a class="drawer-link" href="/contact">Contact</a><a class="drawer-link" href="/calculators">Calculators</a><a class="drawer-link" href="/blog" aria-current="page">Blog</a>
+    </nav>
 
-    <main id="main">
-      <article class="wrap-narrow post">
-        <nav class="breadcrumb" aria-label="Breadcrumb">
-          <a href="/">Home</a> <span aria-hidden="true">/</span> <a href="/blog">Blog</a>
-        </nav>
-        <header class="post-header">
-          <h1>smooth closing</h1>
-          <p class="meta">By Firm Title TB &middot; <time datetime="2026-05-08">May 8, 2026</time> &middot; 1 min read</p>
-        </header>
-        <div class="prose">
+    <main id="main" class="page">
+      <div class="container">
+        <a class="back-link" href="/blog"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>Back to Blog</a>
+        <article>
+          <header class="page-header">
+            <h1>smooth closing</h1>
+            <p class="page-subtitle">Firm Title TB &middot; <time datetime="2026-05-08">May 8, 2026</time> &middot; 1 min read</p>
+          </header>
+          <div class="post-card">
+            <div class="prose">
 <p>A smooth closing does not happen by accident.</p>
 <p>Behind every successful transaction is a title team working through the details long before closing day arrives. At Firm Title TB, we help keep deals moving with communication, coordination, and problem-solving every step of the way.</p>
 <p>What happens behind the scenes?</p>
@@ -135,75 +136,72 @@
 <p>Whether it is residential, commercial, or investment real estate, our team is committed to making the process as smooth and stress-free as possible.</p>
 <p>Because every closing represents something bigger than paperwork. It represents a new chapter.</p>
 <p>#TitleCompany #ClosingDay #TampaRealEstate #FloridaRealEstate #RealEstateProfessionals</p>
-        </div>
-        <div class="share" aria-label="Share this post">
-          <span>Share:</span>
-          <a href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing" target="_blank" rel="noopener noreferrer">Facebook</a>
-          <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-          <a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing&amp;text=smooth%20closing" target="_blank" rel="noopener noreferrer">X</a>
-          <a href="mailto:?subject=smooth%20closing&amp;body=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing">Email</a>
+            </div>
+          </div>
+        </article>
+        <div class="share">
+          <span class="share-label">Share this post</span>
+          <div class="share-buttons">
+            <a href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing" target="_blank" rel="noopener noreferrer">Facebook</a>
+            <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing&amp;text=smooth%20closing" target="_blank" rel="noopener noreferrer">X</a>
+            <a href="mailto:?subject=smooth%20closing&amp;body=https%3A%2F%2Ffirmtitletb.com%2Fblog%2Fsmooth-closing">Email</a>
+          </div>
         </div>
 
-        <nav class="pager" aria-label="More posts">
-          <a class="pager-prev" href="/blog/development-update"><span>&larr; Previous</span>Development Update</a>
-          <a class="pager-next" href="/blog/5-12-development-update"><span>Next &rarr;</span>Development Update</a>
+        <nav class="pager" aria-label="Previous and next posts">
+          <a class="pager-link" href="/blog/development-update"><span>&larr; Previous post</span>Development Update</a>
+          <a class="pager-link pager-next" href="/blog/5-12-development-update"><span>Next post &rarr;</span>Development Update</a>
         </nav>
-      </article>
 
-      <section class="cta">
-        <div class="wrap">
-          <h2>Have questions about your closing?</h2>
-          <p>Our attorney-owned team handles closings across Tampa Bay &mdash; and you can close on your phone in about 15 minutes.</p>
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">More From the Blog</h2>
+          <a class="row-link" href="/blog/myth-buster">
+            <span class="row-text"><span class="row-title">myth-buster</span><span class="row-meta">June 11, 2026</span></span>
+            <span class="row-action" aria-hidden="true">Read &rarr;</span>
+          </a>
+          <a class="row-link" href="/blog/foundational-decisions">
+            <span class="row-text"><span class="row-title">foundational-decisions</span><span class="row-meta">June 9, 2026</span></span>
+            <span class="row-action" aria-hidden="true">Read &rarr;</span>
+          </a>
+          <a class="row-link" href="/blog/hotel-ora">
+            <span class="row-text"><span class="row-title">development Update</span><span class="row-meta">June 8, 2026</span></span>
+            <span class="row-action" aria-hidden="true">Read &rarr;</span>
+          </a>
+        </section>
+
+        <div class="cta">
+          <p>Have questions about your closing? We’re here to help.</p>
           <div class="cta-actions">
-            <a class="btn btn-primary" href="/contact">Contact Firm Title TB</a>
-            <a class="btn btn-secondary" href="tel:+18138124949">Call (813) 812-4949</a>
+            <a class="btn-primary" href="/contact">Contact Firm Title TB</a>
+            <a class="btn-outline" href="tel:+18138124949">Call (813) 812-4949</a>
           </div>
         </div>
-      </section>
-
-      <section class="wrap related" aria-labelledby="related-heading">
-        <h2 id="related-heading">More from the blog</h2>
-        <div class="cards cards-grid">
-        <article class="card" >
-          <div class="card-body">
-            <p class="meta"><time datetime="2026-06-11">June 11, 2026</time> &middot; 1 min read</p>
-            <h2 class="card-title"><a href="/blog/myth-buster">myth-buster</a></h2>
-            <p class="card-excerpt">🧠 Title Myth Buster: “You always have to use the title company your agent recommends.” Not true. In Florida, you have the right to choose your own title company and that choice…</p>
-            <span class="read-more" aria-hidden="true">Read more &rarr;</span>
-          </div>
-        </article>
-        <article class="card" >
-          <div class="card-body">
-            <p class="meta"><time datetime="2026-06-09">June 9, 2026</time> &middot; 1 min read</p>
-            <h2 class="card-title"><a href="/blog/foundational-decisions">foundational-decisions</a></h2>
-            <p class="card-excerpt">🏡 The foundation of your decision matters more than you think. #RealEstateTips #AssetProtection #TampaRealEstate #SmartInvesting #FirmTitleTB</p>
-            <span class="read-more" aria-hidden="true">Read more &rarr;</span>
-          </div>
-        </article>
-        <article class="card" >
-          <div class="card-body">
-            <p class="meta"><time datetime="2026-06-08">June 8, 2026</time> &middot; 1 min read</p>
-            <h2 class="card-title"><a href="/blog/hotel-ora">development Update</a></h2>
-            <p class="card-excerpt">🚨 Tampa Hospitality Expansion News 🚨 Hotel Ora is continuing its growth in the Tampa market, securing a second property in the city as reported by Tampa Bay Business &amp; Wealth…</p>
-            <span class="read-more" aria-hidden="true">Read more &rarr;</span>
-          </div>
-        </article>
-        </div>
-      </section>
+      </div>
     </main>
 
     <footer class="site-footer">
-      <div class="wrap">
-        <p class="footer-contact">3502 Henderson Blvd, Suite 225, Tampa, FL 33609 &middot; <a href="tel:+18138124949">(813) 812-4949</a> &middot; <a href="mailto:contracts@firmtitletb.com">contracts@firmtitletb.com</a></p>
-        <p>&copy; 2026 FirmTitleTB. All rights reserved.</p>
-        <p class="footer-links">
-          <a href="/privacy">Privacy Policy</a>
-          <span aria-hidden="true">|</span>
-          <a href="/sms-opt-in">SMS Opt-In</a>
-          <span aria-hidden="true">|</span>
-          <a href="/blog/feed.xml">RSS</a>
-        </p>
+      <p>&copy; 2026 FirmTitleTB. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="/privacy">Privacy Policy</a><span aria-hidden="true">|</span><a href="/sms-opt-in">SMS Opt-In</a><span aria-hidden="true">|</span><a href="/blog/feed.xml">RSS</a>
       </div>
     </footer>
+    <script>
+      (function () {
+        var btn = document.querySelector('.menu-button');
+        var drawer = document.getElementById('drawer');
+        var overlay = document.querySelector('.drawer-overlay');
+        function set(open) {
+          drawer.hidden = overlay.hidden = !open;
+          btn.setAttribute('aria-expanded', String(open));
+          document.body.style.overflow = open ? 'hidden' : '';
+          (open ? drawer.querySelector('a') : btn).focus();
+        }
+        btn.addEventListener('click', function () { set(true); });
+        overlay.addEventListener('click', function () { set(false); });
+        drawer.querySelector('.drawer-close').addEventListener('click', function () { set(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !drawer.hidden) set(false); });
+      })();
+    </script>
   </body>
 </html>

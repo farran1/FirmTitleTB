@@ -104,3 +104,16 @@ test('RSS feed is well-formed enough to escape special characters', () => {
   const feed = blog.generateFeed(posts);
   assert.ok(feed.includes('<title>Q&amp;A &lt;today&gt;</title>'));
 });
+
+test('private-sheet rows (Sheets API values) parse like the public feed', () => {
+  const rows = blog.valuesToRows([
+    ['Title', 'Slug', 'Content', 'Date', 'Published', 'Category'],
+    ['Hello', 'hello', 'Body', '6/8/2026', true, 'Closings'],
+    ['Draft', 'draft', 'Body', '6/9/2026', false],
+    [],
+  ]);
+  const posts = blog.rowsToPosts(rows, '2026-07-01');
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].date, '2026-06-08');
+  assert.equal(posts[0].category, 'Closings');
+});

@@ -42,6 +42,7 @@ jobs:
         env:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME || 'Sheet1' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BLOG_ALLOW_SHRINK: ${{ inputs.allow_shrink && '1' || '0' }}
         run: node scripts/generate-blog.js
 
@@ -62,7 +63,10 @@ jobs:
             echo "No changes to publish"
             exit 0
           fi
-          git commit -m "Auto-update blog posts from Google Sheet"
+          # Record which posts changed, as an audit trail alongside the sheet's version history.
+          summary=$(git diff --staged --name-status -- 'blog/*/index.html' \
+            | awk '{ split($2, p, "/"); s = ($1 == "A") ? "Added" : ($1 == "D") ? "Removed" : "Updated"; print "- " s ": /blog/" p[2] }')
+          git commit -m "Auto-update blog posts from Google Sheet" -m "${summary:-Blog index, feed or sitemap only}"
           for attempt in 1 2 3; do
             git pull --rebase origin gh-pages && git push origin HEAD:gh-pages && exit 0
             sleep $((attempt * 5))

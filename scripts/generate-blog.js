@@ -3,8 +3,13 @@
  * Builds the static blog (/blog, /blog/<slug>, /blog/feed.xml) from a Google Sheet
  * and refreshes the blog entries in sitemap.xml.
  *
- * The sheet must be shared as "Anyone with the link can view". Row 1 holds the
- * headers; columns are matched by header name (case-insensitive), so they can be
+ * Access: only people the sheet is shared with as Editors can create, edit, publish
+ * or delete posts. In production the sheet stays private and this script reads it
+ * with a read-only Google service account (GOOGLE_SERVICE_ACCOUNT_JSON); setup steps
+ * are in scripts/README.md. Without that secret it falls back to the sheet's public
+ * "Anyone with the link can view" link, which exposes drafts to anyone with the link.
+ *
+ * Row 1 holds the headers; columns are matched by header name (case-insensitive), so they can be
  * in any order. Sheets that only have the original five columns (A–E) still work.
  *
  *   Title       required  Post headline
@@ -23,6 +28,8 @@
  * Environment:
  *   GOOGLE_SHEET_ID     Sheet ID (from the sheet URL). Required unless BLOG_SOURCE_FILE is set.
  *   GOOGLE_SHEET_NAME   Tab name. Default "Sheet1".
+ *   GOOGLE_SERVICE_ACCOUNT_JSON  Service-account key (the whole JSON file). When set,
+ *                       the sheet is read privately through the Sheets API.
  *   BLOG_SOURCE_FILE    Read rows from a local JSON file (array of objects keyed by
  *                       header name) instead of the sheet. For local previews/tests.
  *   BLOG_ALLOW_SHRINK   Set to 1 to allow a run that would remove more than half of
@@ -77,45 +84,115 @@ function warn(msg) {
 
 /* ------------------------------------------------------------------ fetching */
 
-function fetchText(url, { timeoutMs = 20000, redirects = 5 } = {}) {
+function request(url, { method = 'GET', headers = {}, body, timeoutMs = 20000, redirects = 5 } = {}) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': 'FirmTitleTB-blog-generator' } }, (res) => {
+    const req = https.request(url, { method, headers: { 'User-Agent': 'FirmTitleTB-blog-generator', ...headers } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         if (redirects <= 0) return reject(new Error('Too many redirects'));
         const next = new URL(res.headers.location, url).toString();
-        return resolve(fetchText(next, { timeoutMs, redirects: redirects - 1 }));
-      }
-      if (res.statusCode !== 200) {
-        res.resume();
-        return reject(new Error(`HTTP ${res.statusCode} from Google Sheets`));
+        return resolve(request(next, { headers, timeoutMs, redirects: redirects - 1 }));
       }
       let data = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => (data += chunk));
-      res.on('end', () => resolve(data));
+      res.on('end', () => {
+        if (res.statusCode === 200) return resolve(data);
+        const err = new Error(`HTTP ${res.statusCode} from ${new URL(url).host}`);
+        err.status = res.statusCode;
+        err.body = data;
+        reject(err);
+      });
       res.on('error', reject);
     });
     req.setTimeout(timeoutMs, () => req.destroy(new Error(`Timed out after ${timeoutMs}ms`)));
     req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
   });
 }
 
-async function fetchWithRetry(url, attempts = 4) {
+async function withRetry(fn, attempts = 4) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      return await fetchText(url);
+      return await fn();
     } catch (err) {
       lastErr = err;
+      // Permission and not-found errors won't fix themselves; fail fast.
+      if (err.status && err.status < 500 && err.status !== 429) throw err;
       if (i < attempts - 1) {
         const delay = 2000 * 2 ** i;
-        console.log(`Fetch failed (${err.message}); retrying in ${delay / 1000}s...`);
+        console.log(`Request failed (${err.message}); retrying in ${delay / 1000}s...`);
         await new Promise((r) => setTimeout(r, delay));
       }
     }
   }
   throw lastErr;
+}
+
+const base64url = (input) => Buffer.from(input).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+/** Exchanges a service-account key for a short-lived, read-only Sheets access token. */
+async function getServiceAccountToken(credentials) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claims = base64url(JSON.stringify({
+    iss: credentials.client_email,
+    scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 600,
+  }));
+  const signature = base64url(crypto.createSign('RSA-SHA256').update(`${header}.${claims}`).sign(credentials.private_key));
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion: `${header}.${claims}.${signature}`,
+  }).toString();
+  const res = await withRetry(() => request('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    body,
+  }));
+  return JSON.parse(res).access_token;
+}
+
+/** Reads a private sheet with a service account that has Viewer access to it. */
+async function fetchPrivateSheet(sheetId, sheetName, credentialsJson) {
+  let credentials;
+  try {
+    credentials = JSON.parse(credentialsJson);
+  } catch {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON — paste the whole key file into the secret');
+  }
+  if (!credentials.client_email || !credentials.private_key) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is missing client_email or private_key');
+  }
+  const token = await getServiceAccountToken(credentials);
+  const range = encodeURIComponent(`'${sheetName.replace(/'/g, "''")}'`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/${range}` +
+    '?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
+  let raw;
+  try {
+    raw = await withRetry(() => request(url, { headers: { Authorization: `Bearer ${token}` } }));
+  } catch (err) {
+    if (err.status === 403 || err.status === 404) {
+      throw new Error(`The service account can't read the sheet. In Google Sheets, click Share and add ${credentials.client_email} as a Viewer.`);
+    }
+    throw err;
+  }
+  return valuesToRows(JSON.parse(raw).values || []);
+}
+
+/** Converts a Sheets API values grid (first row = headers) into { header: value } row objects. */
+function valuesToRows(values) {
+  const [headerRow = [], ...dataRows] = values;
+  const labels = headerRow.map((h, i) => String(h).trim() || `__col${i}`);
+  return dataRows.map((cells) => {
+    const obj = { __order: labels };
+    labels.forEach((label, i) => { obj[label] = cells[i] === undefined ? null : cells[i]; });
+    return obj;
+  });
 }
 
 /** Parses the gviz JSON response into an array of { header: value } row objects. */
@@ -392,6 +469,8 @@ function contentToHtml(content) {
 
 /* ------------------------------------------------------------------ templates */
 
+// Mirrors the site's React Navbar/Footer (src/components/Navbar.tsx on main) so the
+// blog is indistinguishable from the rest of firmtitletb.com.
 const NAV_LINKS = [
   ['/', 'Home'],
   ['/videos', 'Videos'],
@@ -401,11 +480,28 @@ const NAV_LINKS = [
   ['/blog', 'Blog'],
 ];
 
+const ICON_ATTRS = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+const SOCIAL_LINKS = [
+  ['https://www.facebook.com/firmtitletampabay/', 'Facebook', `<svg ${ICON_ATTRS}><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>`],
+  ['https://www.instagram.com/firmtitletb/', 'Instagram', `<svg ${ICON_ATTRS}><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>`],
+  ['https://www.youtube.com/@FirmTitleTB', 'YouTube', `<svg ${ICON_ATTRS}><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>`],
+  ['https://www.tiktok.com/@firmtitletb', 'TikTok', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>'],
+  ['https://www.linkedin.com/in/scott-farrell-0778266/', 'LinkedIn', `<svg ${ICON_ATTRS}><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>`],
+];
+const MENU_ICON = `<svg ${ICON_ATTRS}><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>`;
+const CLOSE_ICON = `<svg ${ICON_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+const ARROW_LEFT = `<svg ${ICON_ATTRS}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;
+
+function navLinks(cls) {
+  return NAV_LINKS.map(([href, label]) =>
+    `<a class="${cls}" href="${href}"${href === '/blog' ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+}
+
 function layout({ title, description, canonical, ogType, image, headExtra = '', body, cssHref }) {
   const ogImage = image || LOGO_URL;
   const card = image ? 'summary_large_image' : 'summary';
-  const nav = NAV_LINKS.map(([href, label]) =>
-    `<a href="${href}"${href === '/blog' ? ' aria-current="page"' : ''}>${label}</a>`).join('\n          ');
+  const social = SOCIAL_LINKS.map(([href, label, svg]) =>
+    `<a href="${href}" target="_blank" rel="noopener noreferrer" aria-label="${label}">${svg}</a>`).join('');
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -436,7 +532,7 @@ ${headExtra}
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="${cssHref}" />
 
     <!-- Favicon -->
@@ -446,94 +542,137 @@ ${headExtra}
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <div class="wrap header-inner">
-        <a class="brand" href="/">Firm Title TB</a>
-        <nav class="site-nav" aria-label="Main">
-          ${nav}
-        </nav>
-        <a class="header-phone" href="tel:${PHONE_TEL}">${PHONE_DISPLAY}</a>
+      <div class="nav-bar">
+        <div class="nav-mobile">
+          <button type="button" class="menu-button" aria-label="Open menu" aria-expanded="false" aria-controls="drawer">${MENU_ICON}</button>
+          <a class="nav-brand" href="/">Firm Title TB</a>
+        </div>
+        <nav class="nav-desktop" aria-label="Main">${navLinks('nav-link')}</nav>
+        <div class="nav-social">${social}</div>
       </div>
     </header>
+    <div class="drawer-overlay" hidden></div>
+    <nav class="drawer" id="drawer" aria-label="Menu" hidden>
+      <button type="button" class="drawer-close" aria-label="Close menu">${CLOSE_ICON}</button>
+      ${navLinks('drawer-link')}
+    </nav>
 
 ${body}
 
     <footer class="site-footer">
-      <div class="wrap">
-        <p class="footer-contact">3502 Henderson Blvd, Suite 225, Tampa, FL 33609 &middot; <a href="tel:${PHONE_TEL}">${PHONE_DISPLAY}</a> &middot; <a href="mailto:contracts@firmtitletb.com">contracts@firmtitletb.com</a></p>
-        <p>&copy; ${new Date().getFullYear()} FirmTitleTB. All rights reserved.</p>
-        <p class="footer-links">
-          <a href="/privacy">Privacy Policy</a>
-          <span aria-hidden="true">|</span>
-          <a href="/sms-opt-in">SMS Opt-In</a>
-          <span aria-hidden="true">|</span>
-          <a href="/blog/feed.xml">RSS</a>
-        </p>
+      <p>&copy; ${new Date().getFullYear()} FirmTitleTB. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="/privacy">Privacy Policy</a><span aria-hidden="true">|</span><a href="/sms-opt-in">SMS Opt-In</a><span aria-hidden="true">|</span><a href="/blog/feed.xml">RSS</a>
       </div>
     </footer>
+    <script>
+      (function () {
+        var btn = document.querySelector('.menu-button');
+        var drawer = document.getElementById('drawer');
+        var overlay = document.querySelector('.drawer-overlay');
+        function set(open) {
+          drawer.hidden = overlay.hidden = !open;
+          btn.setAttribute('aria-expanded', String(open));
+          document.body.style.overflow = open ? 'hidden' : '';
+          (open ? drawer.querySelector('a') : btn).focus();
+        }
+        btn.addEventListener('click', function () { set(true); });
+        overlay.addEventListener('click', function () { set(false); });
+        drawer.querySelector('.drawer-close').addEventListener('click', function () { set(false); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !drawer.hidden) set(false); });
+      })();
+    </script>
   </body>
 </html>
 `.replace(/^[ \t]+\n/gm, ''); // drop lines left blank by optional fragments
 }
 
-function postCard(post, { featured = false, searchable = false } = {}) {
-  const category = post.category
-    ? `<span class="tag">${escapeHtml(post.category)}</span>` : '';
-  const image = post.image
-    ? `<div class="card-media"><img src="${escapeHtml(post.image)}" alt="" loading="lazy" decoding="async" /></div>` : '';
-  const search = searchable && escapeHtml(`${post.title} ${post.category} ${plainText(post.content)}`.toLowerCase().slice(0, 2000));
-  return `        <article class="card${featured ? ' card-featured' : ''}${post.image ? ' has-media' : ''}" ${searchable ? ` data-category="${escapeHtml(post.category.toLowerCase())}" data-search="${search}"` : ''}>
-          ${image}
+function postMeta(post, { author = false } = {}) {
+  return `${author ? `${escapeHtml(post.author)} &middot; ` : ''}<time datetime="${post.date}">${displayDate(post.date)}</time> &middot; ${readingMinutes(post.content)} min read`;
+}
+
+function featuredCard(post) {
+  return `        <article class="card card-featured${post.image ? ' has-media' : ''}" data-category="${escapeHtml(post.category.toLowerCase())}" data-search="${searchText(post)}">
+          ${post.image ? `<div class="card-media"><img src="${escapeHtml(post.image)}" alt="" decoding="async" /></div>` : ''}
           <div class="card-body">
-            <p class="meta">${category}<time datetime="${post.date}">${displayDate(post.date)}</time> &middot; ${readingMinutes(post.content)} min read</p>
+            <p class="eyebrow">Latest${post.category ? ` &middot; ${escapeHtml(post.category)}` : ''}</p>
             <h2 class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.title)}</a></h2>
-            <p class="card-excerpt">${escapeHtml(postSummary(post, featured ? 280 : 180))}</p>
+            <p class="meta">${postMeta(post)}</p>
+            <p class="card-excerpt">${escapeHtml(postSummary(post, 300))}</p>
+            <span class="read-more" aria-hidden="true">Read article &rarr;</span>
+          </div>
+        </article>`;
+}
+
+function postCard(post) {
+  return `        <article class="card${post.image ? ' has-media' : ''}" data-category="${escapeHtml(post.category.toLowerCase())}" data-search="${searchText(post)}">
+          ${post.image ? `<div class="card-media"><img src="${escapeHtml(post.image)}" alt="" loading="lazy" decoding="async" /></div>` : ''}
+          <div class="card-body">
+            ${post.category ? `<p class="eyebrow">${escapeHtml(post.category)}</p>` : ''}
+            <h2 class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.title)}</a></h2>
+            <p class="meta">${postMeta(post)}</p>
+            <p class="card-excerpt">${escapeHtml(postSummary(post, 180))}</p>
             <span class="read-more" aria-hidden="true">Read more &rarr;</span>
           </div>
         </article>`;
 }
 
+function searchText(post) {
+  return escapeHtml(`${post.title} ${post.category} ${plainText(post.content)}`.toLowerCase().slice(0, 2000));
+}
+
+function ctaBlock(question = 'Have questions about your closing? We’re here to help.') {
+  return `<div class="cta">
+          <p>${question}</p>
+          <div class="cta-actions">
+            <a class="btn-primary" href="/contact">Contact Firm Title TB</a>
+            <a class="btn-outline" href="tel:${PHONE_TEL}">Call ${PHONE_DISPLAY}</a>
+          </div>
+        </div>`;
+}
+
 function generateBlogListHtml(posts, cssHref) {
   const categories = [...new Set(posts.map((p) => p.category).filter(Boolean))].sort();
   const filters = categories.length > 1 ? `
-        <div class="filters" role="group" aria-label="Filter posts by category" hidden>
-          <button type="button" class="chip" data-filter="" aria-pressed="true">All</button>
-          ${categories.map((c) => `<button type="button" class="chip" data-filter="${escapeHtml(c.toLowerCase())}" aria-pressed="false">${escapeHtml(c)}</button>`).join('\n          ')}
-        </div>` : '';
+          <div class="filters" role="group" aria-label="Filter posts by category">
+            <button type="button" class="chip" data-filter="" aria-pressed="true">All</button>
+            ${categories.map((c) => `<button type="button" class="chip" data-filter="${escapeHtml(c.toLowerCase())}" aria-pressed="false">${escapeHtml(c)}</button>`).join('\n            ')}
+          </div>` : '';
 
-  const cards = posts.map((p, i) => postCard(p, { featured: i === 0, searchable: true })).join('\n');
-  const body = `    <main id="main">
-      <section class="blog-hero">
-        <div class="wrap">
-          <h1>The Firm Title TB Blog</h1>
-          <p>Closings, title insurance, Florida real estate tips, and Tampa Bay market news &mdash; from an attorney-owned title company in South Tampa.</p>
-        </div>
-      </section>
+  const [latest, ...rest] = posts;
+  const body = `    <main id="main" class="page">
+      <div class="container container-wide">
+        <header class="page-header">
+          <h1>Blog</h1>
+          <p class="page-subtitle">Closings, title insurance, and Tampa Bay real estate news from Firm Title TB.</p>
+        </header>
 
-      <section class="wrap blog-list" aria-label="Blog posts">
         <div class="toolbar" hidden>
           <label class="search">
+            <svg ${ICON_ATTRS}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <span class="visually-hidden">Search posts</span>
-            <input type="search" placeholder="Search posts…" autocomplete="off" />
+            <input type="search" placeholder="Search posts" autocomplete="off" />
           </label>${filters}
         </div>
         <p class="empty" hidden>No posts match your search.</p>
-        <div class="cards">
-${cards || '          <p class="empty">No posts yet. Check back soon!</p>'}
-        </div>
-      </section>
 
-      ${ctaBlock()}
+${latest ? featuredCard(latest) : '        <p class="empty">No posts yet. Check back soon!</p>'}
+${rest.length ? `        <div class="card-grid">
+${rest.map(postCard).join('\n')}
+        </div>` : ''}
+
+        ${ctaBlock()}
+      </div>
     </main>
     <script>
       (function () {
         var cards = [].slice.call(document.querySelectorAll('.card'));
         var toolbar = document.querySelector('.toolbar');
-        if (!toolbar || cards.length < 4) return;
+        if (cards.length < 4) return;
         toolbar.hidden = false;
-        var filters = document.querySelector('.filters');
-        if (filters) filters.hidden = false;
         var input = toolbar.querySelector('input');
-        var empty = document.querySelector('.blog-list > .empty');
+        var filters = toolbar.querySelector('.filters');
+        var empty = document.querySelector('.page .empty');
         var category = '';
         function apply() {
           var q = input.value.trim().toLowerCase();
@@ -589,28 +728,17 @@ ${jsonLd({
   });
 }
 
-function ctaBlock() {
-  return `<section class="cta">
-        <div class="wrap">
-          <h2>Have questions about your closing?</h2>
-          <p>Our attorney-owned team handles closings across Tampa Bay &mdash; and you can close on your phone in about 15 minutes.</p>
-          <div class="cta-actions">
-            <a class="btn btn-primary" href="/contact">Contact Firm Title TB</a>
-            <a class="btn btn-secondary" href="tel:${PHONE_TEL}">Call ${PHONE_DISPLAY}</a>
-          </div>
-        </div>
-      </section>`;
-}
-
 function shareLinks(post) {
   const url = encodeURIComponent(`${SITE_URL}/blog/${post.slug}`);
   const text = encodeURIComponent(post.title);
-  return `<div class="share" aria-label="Share this post">
-          <span>Share:</span>
-          <a href="https://www.facebook.com/sharer/sharer.php?u=${url}" target="_blank" rel="noopener noreferrer">Facebook</a>
-          <a href="https://www.linkedin.com/sharing/share-offsite/?url=${url}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-          <a href="https://twitter.com/intent/tweet?url=${url}&amp;text=${text}" target="_blank" rel="noopener noreferrer">X</a>
-          <a href="mailto:?subject=${text}&amp;body=${url}">Email</a>
+  return `<div class="share">
+          <span class="share-label">Share this post</span>
+          <div class="share-buttons">
+            <a href="https://www.facebook.com/sharer/sharer.php?u=${url}" target="_blank" rel="noopener noreferrer">Facebook</a>
+            <a href="https://www.linkedin.com/sharing/share-offsite/?url=${url}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <a href="https://twitter.com/intent/tweet?url=${url}&amp;text=${text}" target="_blank" rel="noopener noreferrer">X</a>
+            <a href="mailto:?subject=${text}&amp;body=${url}">Email</a>
+          </div>
         </div>`;
 }
 
@@ -618,47 +746,51 @@ function generatePostHtml(post, posts, cssHref) {
   const index = posts.indexOf(post);
   const newer = posts[index - 1];
   const older = posts[index + 1];
+  const sameCategory = (p) => Boolean(post.category) && p.category === post.category;
   const related = posts
-    .filter((p) => p !== post)
-    .sort((a, b) => (b.category === post.category && post.category ? 1 : 0) - (a.category === post.category && post.category ? 1 : 0))
+    .filter((p) => p !== post && p !== newer && p !== older)
+    .sort((a, b) => Number(sameCategory(b)) - Number(sameCategory(a)))
     .slice(0, 3);
   const url = `${SITE_URL}/blog/${post.slug}`;
   const description = postSummary(post, 160);
 
   const pager = (newer || older) ? `
-        <nav class="pager" aria-label="More posts">
-          ${older ? `<a class="pager-prev" href="/blog/${older.slug}"><span>&larr; Previous</span>${escapeHtml(older.title)}</a>` : '<span></span>'}
-          ${newer ? `<a class="pager-next" href="/blog/${newer.slug}"><span>Next &rarr;</span>${escapeHtml(newer.title)}</a>` : '<span></span>'}
+        <nav class="pager" aria-label="Previous and next posts">
+          ${older ? `<a class="pager-link" href="/blog/${older.slug}"><span>&larr; Previous post</span>${escapeHtml(older.title)}</a>` : '<span></span>'}
+          ${newer ? `<a class="pager-link pager-next" href="/blog/${newer.slug}"><span>Next post &rarr;</span>${escapeHtml(newer.title)}</a>` : '<span></span>'}
         </nav>` : '';
 
   const relatedHtml = related.length ? `
-      <section class="wrap related" aria-labelledby="related-heading">
-        <h2 id="related-heading">More from the blog</h2>
-        <div class="cards cards-grid">
-${related.map((p) => postCard(p)).join('\n')}
-        </div>
-      </section>` : '';
+        <section class="related" aria-labelledby="related-heading">
+          <h2 id="related-heading">More From the Blog</h2>
+          ${related.map((p) => `<a class="row-link" href="/blog/${p.slug}">
+            <span class="row-text"><span class="row-title">${escapeHtml(p.title)}</span><span class="row-meta">${displayDate(p.date)}</span></span>
+            <span class="row-action" aria-hidden="true">Read &rarr;</span>
+          </a>`).join('\n          ')}
+        </section>` : '';
 
-  const body = `    <main id="main">
-      <article class="wrap-narrow post">
-        <nav class="breadcrumb" aria-label="Breadcrumb">
-          <a href="/">Home</a> <span aria-hidden="true">/</span> <a href="/blog">Blog</a>${post.category ? ` <span aria-hidden="true">/</span> <span>${escapeHtml(post.category)}</span>` : ''}
-        </nav>
-        <header class="post-header">
-          ${post.category ? `<p class="tag">${escapeHtml(post.category)}</p>` : ''}
-          <h1>${escapeHtml(post.title)}</h1>
-          <p class="meta">By ${escapeHtml(post.author)} &middot; <time datetime="${post.date}">${displayDate(post.date)}</time> &middot; ${readingMinutes(post.content)} min read</p>
-        </header>
-        ${post.image ? `<figure class="post-image"><img src="${escapeHtml(post.image)}" alt="" decoding="async" /></figure>` : ''}
-        <div class="prose">
+  const body = `    <main id="main" class="page">
+      <div class="container">
+        <a class="back-link" href="/blog">${ARROW_LEFT}Back to Blog</a>
+        <article>
+          <header class="page-header">
+            ${post.category ? `<p class="eyebrow">${escapeHtml(post.category)}</p>` : ''}
+            <h1>${escapeHtml(post.title)}</h1>
+            <p class="page-subtitle">${postMeta(post, { author: true })}</p>
+          </header>
+          <div class="post-card">
+            ${post.image ? `<figure class="post-image"><img src="${escapeHtml(post.image)}" alt="" decoding="async" /></figure>` : ''}
+            <div class="prose">
 ${contentToHtml(post.content)}
-        </div>
+            </div>
+          </div>
+        </article>
         ${shareLinks(post)}
 ${pager}
-      </article>
-
-      ${ctaBlock()}
 ${relatedHtml}
+
+        ${ctaBlock()}
+      </div>
     </main>`;
 
   const headExtra = `    <meta property="article:published_time" content="${post.date}" />
@@ -809,9 +941,14 @@ async function loadRows() {
   const sheetId = process.env.GOOGLE_SHEET_ID;
   if (!sheetId) throw new Error('GOOGLE_SHEET_ID environment variable is required');
   const sheetName = process.env.GOOGLE_SHEET_NAME || 'Sheet1';
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    console.log(`Reading private Google Sheet (tab "${sheetName}") with the service account...`);
+    return fetchPrivateSheet(sheetId, sheetName, process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  }
+  warn('Reading the sheet through its public link, so anyone with the link can read every row, drafts included. ' +
+    'Add a GOOGLE_SERVICE_ACCOUNT_JSON secret and make the sheet private (see scripts/README.md).');
   const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq?tqx=out:json&headers=1&sheet=${encodeURIComponent(sheetName)}`;
-  console.log(`Fetching posts from Google Sheet (tab "${sheetName}")...`);
-  return parseGvizResponse(await fetchWithRetry(url));
+  return parseGvizResponse(await withRetry(() => request(url)));
 }
 
 async function main() {
@@ -843,6 +980,7 @@ if (require.main === module) {
 
 module.exports = {
   parseGvizResponse,
+  valuesToRows,
   rowsToPosts,
   parseDate,
   normalizeSlug,
