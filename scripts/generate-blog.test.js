@@ -146,3 +146,12 @@ test('footer uses the legal business name', () => {
   const [post] = toPosts([row({})]);
   assert.match(blog.generatePostHtml(post, [post], '/blog/blog.css'), /Firm Title TB, LLC\. All rights reserved\./);
 });
+
+test('closing posts work without the pin emoji', () => {
+  const [post] = toPosts([row({ Title: 'closing', Content: 'CLOSED\n\n410 S Armenia Ave Unit 926, Tampa, FL 33609\n$375,000\n2 beds | 2 baths\n\nGreat condo.' })]);
+  assert.equal(post.displayTitle, 'Closed: 410 S Armenia Ave Unit 926, Tampa, FL 33609');
+  const html = blog.contentToHtml(post.body);
+  assert.ok(html.includes('<p class="listing-price">$375,000</p>'));
+  assert.ok(html.includes('<p class="listing-address">410 S Armenia Ave Unit 926, Tampa, FL 33609</p>'));
+  assert.ok(blog.generateBlogListHtml([post], '/blog/blog.css').includes('<span class="cover-price">$375,000</span>'));
+});

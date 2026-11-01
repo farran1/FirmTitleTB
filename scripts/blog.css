@@ -189,6 +189,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   margin: 10px 0 20px; font-size: 0.875rem; line-height: 1.7; color: var(--slate-500); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
+.card-title + .card-footer { margin-top: 18px; }
 .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--slate-100); }
 .meta { display: inline-flex; flex-wrap: wrap; gap: 6px; font-size: 0.75rem; color: var(--slate-500); }
 .read-more { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 0.8125rem; font-weight: 700; color: var(--brand); transition: gap 0.2s var(--ease); }
@@ -243,8 +244,19 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .cover-custom { --c1: #2563eb; --c2: #0f172a; }
 .cover-development, .cover-tips { background-image: radial-gradient(120% 90% at 100% 0%, rgba(0, 87, 255, 0.55), transparent 55%), linear-gradient(135deg, var(--c1), var(--c2)); }
 .cover-label { position: absolute; top: 20px; left: 24px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
-.cover-emoji { font-size: 3.25rem; line-height: 1; margin-bottom: 6px; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.25)); transition: transform 0.4s var(--ease); }
-.card:hover .cover-emoji { transform: scale(1.08) rotate(-4deg); }
+/* Topic icon in a frosted tile, with a large faint copy behind it for depth */
+.cover-icon {
+  display: grid; place-items: center; width: 60px; height: 60px; margin-bottom: 4px;
+  color: #fff; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 12px; backdrop-filter: blur(4px);
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.4s var(--ease), background 0.3s;
+}
+.cover-icon svg { width: 28px; height: 28px; stroke-width: 1.75; }
+.card:hover .cover-icon { transform: translateY(-3px); background: rgba(255, 255, 255, 0.18); }
+.cover-ghost { position: absolute; right: -28px; bottom: -36px; z-index: -1; width: 210px; height: 210px; color: #fff; opacity: 0.07; transition: transform 0.6s var(--ease); }
+.cover-ghost svg { width: 100%; height: 100%; stroke-width: 1; }
+.card:hover .cover-ghost { transform: rotate(-6deg) scale(1.04); }
 .cover-stamp { align-self: flex-start; padding: 3px 10px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; border: 1.5px solid rgba(255, 255, 255, 0.8); border-radius: 4px; transform: rotate(-3deg); }
 .cover-price { font-size: clamp(1.75rem, 3.4vw, 2.25rem); font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; }
 .cover-sub { font-size: 0.8125rem; color: rgba(255, 255, 255, 0.85); }
@@ -252,8 +264,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .cover-photo::before, .cover-photo::after { display: none; }
 .cover-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.6s var(--ease); }
 .card:hover .cover-photo img { transform: scale(1.04); }
-.card-featured .cover-emoji { font-size: 5rem; }
-.card-featured .card-featured .cover-price { font-size: clamp(2.25rem, 5vw, 3.25rem); }
+.card-featured .cover-icon { width: 84px; height: 84px; border-radius: 16px; }
+.card-featured .cover-icon svg { width: 40px; height: 40px; }
+.card-featured .cover-ghost { width: 340px; height: 340px; right: -50px; bottom: -70px; }
+.card-featured .cover-price { font-size: clamp(2.25rem, 5vw, 3.25rem); }
 .card-featured .cover { padding: 28px 32px; }
 .card-featured .cover-label { left: 32px; top: 28px; }
 
@@ -354,6 +368,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .footer-links span { color: var(--gray-500); }
 
 @media (prefers-reduced-motion: reduce) {
+  .card:hover .cover-icon, .card:hover .cover-ghost { transform: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

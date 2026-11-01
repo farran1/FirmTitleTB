@@ -386,6 +386,10 @@ function cleanLine(line) {
     .trim();
 }
 
+function stripEmoji(text) {
+  return String(text).replace(EMOJI, '').replace(/[\u200D\uFE0F]/g, '').replace(/[ \t]{2,}/g, ' ');
+}
+
 function sentenceCase(text) {
   return text === text.toUpperCase() ? text.charAt(0) + text.slice(1).toLowerCase() : text;
 }
@@ -457,18 +461,23 @@ function enrichPosts(posts) {
   });
 }
 
-/** Visual cover for posts without an Image: listing details for closings, otherwise the post's emoji. */
+/** A closing's address line: marked with 📍, or a line starting with a street number ("410 S Armenia Ave, Tampa"). */
+function findAddressLine(lines) {
+  return lines.find((l) => l.includes('📍')) ||
+    lines.find((l) => /^\s*\d+\s+[A-Za-z0-9 .'-]+,\s*[A-Za-z]/.test(cleanLine(l)) && !/\bbeds?\b|\bbaths?\b/i.test(l));
+}
+
+/** Visual cover for posts without an Image: listing details for closings, otherwise a topic icon. */
 function coverFor(post) {
   if (post.category === CLOSINGS) {
     const price = (post.content.match(/\$\s?\d{1,3}(?:,\d{3})+/) || [])[0];
-    const addressLine = post.content.split('\n').find((l) => l.includes('📍'));
+    const addressLine = findAddressLine(post.content.split('\n'));
     const address = addressLine ? cleanLine(addressLine).split(',')[0] : '';
     const city = addressLine ? (cleanLine(addressLine).split(',')[1] || '').trim() : '';
     const facts = (post.content.match(/\d+\s*beds?\s*\|[^\n]+/i) || [])[0];
     if (price) return { kind: 'closing', price: price.replace(/\s/g, ''), address, city, facts: facts ? facts.trim() : '' };
   }
-  const emoji = (post.content.match(EMOJI) || [])[0] || '';
-  return { kind: 'emoji', emoji };
+  return { kind: 'icon' };
 }
 
 /* ------------------------------------------------------------------ text helpers */
@@ -508,13 +517,13 @@ function truncate(text, max) {
 }
 
 function postSummary(post, max = 160) {
-  if (post.excerpt) return truncate(plainText(post.excerpt), max);
+  if (post.excerpt) return truncate(plainText(stripEmoji(post.excerpt)), max);
   // Skip listing-detail blocks (address / price / beds) and hashtag lines; they read badly as a summary.
   const prose = String(post.body || post.content).split(/\n\s*\n/)
-    .filter((para) => !(para.includes('📍') && /\$\s?\d/.test(para)))
+    .filter((para) => !(findAddressLine(para.split('\n')) && /\$\s?\d/.test(para)))
     .filter((para) => !/^(\s*#[\p{L}\p{N}_]+)+\s*$/u.test(para.replace(/\n/g, ' ')))
     .join('\n\n');
-  return truncate(plainText(prose || post.body || post.content), max);
+  return truncate(plainText(stripEmoji(prose)), max);
 }
 
 function readingMinutes(content) {
@@ -556,8 +565,8 @@ function link(href, label) {
 
 /** A closing's "📍 address / $price / beds | baths" block, rendered as a listing summary. */
 function listingHtml(lines) {
-  const addressLine = lines.find((l) => l.includes('📍'));
   const priceLine = lines.find((l) => /^\s*\$\s?\d{1,3}(,\d{3})+\s*$/.test(l));
+  const addressLine = findAddressLine(lines.filter((l) => l !== priceLine));
   if (!addressLine || !priceLine || lines.length > 4) return null;
   const facts = lines.filter((l) => l !== addressLine && l !== priceLine)
     .flatMap((l) => l.split('|')).map((f) => f.trim()).filter(Boolean);
@@ -639,6 +648,19 @@ function heroPhoto(post) {
   if (HERO_PHOTOS[post.category]) return HERO_PHOTOS[post.category];
   const hash = [...post.category].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
   return EXTRA_PHOTOS[hash % EXTRA_PHOTOS.length];
+}
+
+// Line icons in the same style (Lucide) as the site's navigation and social icons.
+const TOPIC_ICONS = {
+  [DEVELOPMENT]: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+  [TIPS]: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  [FIRM_NEWS]: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  [CLOSINGS]: '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+};
+const DEFAULT_TOPIC_ICON = '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>';
+
+function topicIcon(category) {
+  return `<svg ${ICON_ATTRS}>${TOPIC_ICONS[category] || DEFAULT_TOPIC_ICON}</svg>`;
 }
 
 function categoryClass(category) {
@@ -763,9 +785,11 @@ function coverHtml(post, { eager = false } = {}) {
             <span class="cover-sub">${escapeHtml([c.address, c.city].filter(Boolean).join(' · '))}</span>
           </div>`;
   }
+  const icon = topicIcon(post.category);
   return `<div class="cover cover-${categoryClass(post.category)}" aria-hidden="true">
             ${label}
-            <span class="cover-emoji">${c.emoji || '🏡'}</span>
+            <span class="cover-ghost">${icon}</span>
+            <span class="cover-icon">${icon}</span>
           </div>`;
 }
 
@@ -780,7 +804,7 @@ function postCard(post, { featured = false, filterable = true } = {}) {
           <div class="card-body">
             <p class="card-kicker">${featured ? '<span class="badge">Latest</span>' : ''}<span>${escapeHtml(post.category)}</span></p>
             <h${featured ? 2 : 3} class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.displayTitle)}</a></h${featured ? 2 : 3}>
-            <p class="card-excerpt">${escapeHtml(postSummary(post, featured ? 260 : 150))}</p>
+            ${postSummary(post) ? `<p class="card-excerpt">${escapeHtml(postSummary(post, featured ? 260 : 150))}</p>` : ''}
             <p class="card-footer"><span class="meta">${postMeta(post)}</span><span class="read-more" aria-hidden="true">${featured ? 'Read article' : 'Read'} ${ARROW_RIGHT}</span></p>
           </div>
         </article>`;
@@ -933,7 +957,7 @@ function generatePostHtml(post, posts, cssHref) {
     .sort((a, b) => Number(sameCategory(b)) - Number(sameCategory(a)))
     .slice(0, 3);
   const url = `${SITE_URL}/blog/${post.slug}`;
-  const description = postSummary(post, 160);
+  const description = postSummary(post, 160) || post.displayTitle;
   const photo = post.image || heroPhoto(post);
 
   const pager = (newer || older) ? `
@@ -1055,7 +1079,7 @@ function generateFeed(posts) {
       <guid isPermaLink="true">${SITE_URL}/blog/${p.slug}</guid>
       <pubDate>${rfc822(p.date)}</pubDate>
       <category>${escapeXml(p.category)}</category>
-      <description>${escapeXml(postSummary(p, 300))}</description>
+      <description>${escapeXml(postSummary(p, 300) || p.displayTitle)}</description>
       <content:encoded><![CDATA[${contentToHtml(p.body).replace(/]]>/g, ']]]]><![CDATA[>')}]]></content:encoded>
     </item>`).join('\n');
   const updated = posts.length ? rfc822(posts[0].date) : rfc822('2026-01-01');

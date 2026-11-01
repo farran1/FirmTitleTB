@@ -22,7 +22,7 @@ One row per post. Row 1 holds the column names; the columns can be in any order.
 | Category  | no       | Topic filter on the blog page. If left blank, posts are sorted automatically into *Recent Closings*, *Tampa Bay Development*, *Firm News* or *Tips & Insights*. |
 | Author    | no       | Defaults to Firm Title TB. |
 
-Closing posts that start with `CLOSED`, then a `📍 address` line, a `$price` line
+Closing posts that start with `CLOSED`, then an address line (the 📍 is optional), a `$price` line
 and a `beds | baths | sqft` line get a listing card and a price cover automatically.
 Posts without an Image get a branded cover built from the post.
 
