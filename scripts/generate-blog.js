@@ -49,6 +49,10 @@ const SITE_NAME = 'Firm Title TB';
 const DEFAULT_AUTHOR = 'Firm Title TB';
 const LOGO_URL = `${SITE_URL}/Firm%20Title%20logo%20-%20blue.jpg`;
 const PHONE_DISPLAY = '(813) 812-4949';
+// GitHub Pages serves each page from a folder and redirects "/blog/x" to "/blog/x/",
+// so links, canonical tags and the sitemap use the trailing-slash address directly.
+const blogPath = (slug) => (slug ? `/blog/${slug}/` : '/blog/');
+const blogUrl = (slug) => `${SITE_URL}${blogPath(slug)}`;
 const PHONE_TEL = '+18138124949';
 const TIME_ZONE = 'America/New_York';
 const FEED_SIZE = 20;
@@ -614,7 +618,7 @@ const NAV_LINKS = [
   ['/homestead', 'Homestead'],
   ['/contact', 'Contact'],
   ['/calculators', 'Calculators'],
-  ['/blog', 'Blog'],
+  ['/blog/', 'Blog'],
 ];
 
 const ICON_ATTRS = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
@@ -669,7 +673,7 @@ function categoryClass(category) {
 
 function navLinks(cls) {
   return NAV_LINKS.map(([href, label]) =>
-    `<a class="${cls}" href="${href}"${href === '/blog' ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+    `<a class="${cls}" href="${href}"${href === '/blog/' ? ' aria-current="page"' : ''}>${label}</a>`).join('');
 }
 
 function layout({ title, description, canonical, ogType, image, headExtra = '', body, cssHref, preload }) {
@@ -803,7 +807,7 @@ function postCard(post, { featured = false, filterable = true } = {}) {
           ${coverHtml(post, { eager: featured })}
           <div class="card-body">
             <p class="card-kicker">${featured ? '<span class="badge">Latest</span>' : ''}<span>${escapeHtml(post.category)}</span></p>
-            <h${featured ? 2 : 3} class="card-title"><a href="/blog/${post.slug}">${escapeHtml(post.displayTitle)}</a></h${featured ? 2 : 3}>
+            <h${featured ? 2 : 3} class="card-title"><a href="${blogPath(post.slug)}">${escapeHtml(post.displayTitle)}</a></h${featured ? 2 : 3}>
             ${postSummary(post) ? `<p class="card-excerpt">${escapeHtml(postSummary(post, featured ? 260 : 150))}</p>` : ''}
             <p class="card-footer"><span class="meta">${postMeta(post)}</span><span class="read-more" aria-hidden="true">${featured ? 'Read article' : 'Read'} ${ARROW_RIGHT}</span></p>
           </div>
@@ -908,12 +912,12 @@ ${jsonLd({
     '@context': 'https://schema.org',
     '@type': 'Blog',
     name: 'Firm Title TB Blog',
-    url: `${SITE_URL}/blog`,
+    url: blogUrl(),
     publisher: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL, logo: { '@type': 'ImageObject', url: LOGO_URL } },
     blogPost: posts.slice(0, 20).map((p) => ({
       '@type': 'BlogPosting',
       headline: p.displayTitle,
-      url: `${SITE_URL}/blog/${p.slug}`,
+      url: blogUrl(p.slug),
       datePublished: p.date,
     })),
   })}
@@ -923,7 +927,7 @@ ${jsonLd({
   return layout({
     title: 'Blog | Firm Title TB — Title Company in Tampa, FL',
     description: 'Recent closings, Tampa Bay development news, and title and closing tips from Firm Title TB, an attorney-owned title company in South Tampa.',
-    canonical: `${SITE_URL}/blog`,
+    canonical: blogUrl(),
     ogType: 'website',
     headExtra,
     body,
@@ -933,7 +937,7 @@ ${jsonLd({
 }
 
 function shareLinks(post) {
-  const url = `${SITE_URL}/blog/${post.slug}`;
+  const url = blogUrl(post.slug);
   const u = encodeURIComponent(url);
   const t = encodeURIComponent(post.displayTitle);
   const fb = SOCIAL_LINKS[0][2];
@@ -956,21 +960,21 @@ function generatePostHtml(post, posts, cssHref) {
     .filter((p) => p !== post)
     .sort((a, b) => Number(sameCategory(b)) - Number(sameCategory(a)))
     .slice(0, 3);
-  const url = `${SITE_URL}/blog/${post.slug}`;
+  const url = blogUrl(post.slug);
   const description = postSummary(post, 160) || post.displayTitle;
   const photo = post.image || heroPhoto(post);
 
   const pager = (newer || older) ? `
         <nav class="pager" aria-label="Previous and next posts">
-          ${older ? `<a class="pager-link" href="/blog/${older.slug}"><span>${ARROW_LEFT}Previous</span>${escapeHtml(older.displayTitle)}</a>` : '<span></span>'}
-          ${newer ? `<a class="pager-link pager-next" href="/blog/${newer.slug}"><span>Next${ARROW_RIGHT}</span>${escapeHtml(newer.displayTitle)}</a>` : '<span></span>'}
+          ${older ? `<a class="pager-link" href="${blogPath(older.slug)}"><span>${ARROW_LEFT}Previous</span>${escapeHtml(older.displayTitle)}</a>` : '<span></span>'}
+          ${newer ? `<a class="pager-link pager-next" href="${blogPath(newer.slug)}"><span>Next${ARROW_RIGHT}</span>${escapeHtml(newer.displayTitle)}</a>` : '<span></span>'}
         </nav>` : '';
 
   const relatedHtml = related.length ? `
       <section class="blog-section related" aria-labelledby="related-heading">
         <div class="section-heading">
           <h2 id="related-heading">Keep reading</h2>
-          <a href="/blog">All posts ${ARROW_RIGHT}</a>
+          <a href="/blog/">All posts ${ARROW_RIGHT}</a>
         </div>
         <div class="card-grid">
 ${related.map((p) => postCard(p, { filterable: false })).join('\n')}
@@ -980,7 +984,7 @@ ${related.map((p) => postCard(p, { filterable: false })).join('\n')}
   const body = `    <main id="main">
       <section class="hero hero-post" style="--hero-image:url('${escapeHtml(photo)}')">
         <div class="hero-inner hero-inner-narrow">
-          <a class="back-link" href="/blog">${ARROW_LEFT}All posts</a>
+          <a class="back-link" href="/blog/">${ARROW_LEFT}All posts</a>
           <p class="hero-chip">${escapeHtml(post.category)}</p>
           <h1>${escapeHtml(post.displayTitle)}</h1>
           <p class="hero-meta">By ${escapeHtml(post.author)}<span aria-hidden="true">&middot;</span>${postMeta(post)}</p>
@@ -1050,7 +1054,7 @@ ${jsonLd({
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+          { '@type': 'ListItem', position: 2, name: 'Blog', item: blogUrl() },
           { '@type': 'ListItem', position: 3, name: post.displayTitle, item: url },
         ],
       },
@@ -1075,8 +1079,8 @@ ${jsonLd({
 function generateFeed(posts) {
   const items = posts.slice(0, FEED_SIZE).map((p) => `    <item>
       <title>${escapeXml(p.displayTitle)}</title>
-      <link>${SITE_URL}/blog/${p.slug}</link>
-      <guid isPermaLink="true">${SITE_URL}/blog/${p.slug}</guid>
+      <link>${blogUrl(p.slug)}</link>
+      <guid isPermaLink="true">${blogUrl(p.slug)}</guid>
       <pubDate>${rfc822(p.date)}</pubDate>
       <category>${escapeXml(p.category)}</category>
       <description>${escapeXml(postSummary(p, 300) || p.displayTitle)}</description>
@@ -1087,7 +1091,7 @@ function generateFeed(posts) {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Firm Title TB Blog</title>
-    <link>${SITE_URL}/blog</link>
+    <link>${blogUrl()}</link>
     <atom:link href="${SITE_URL}/blog/feed.xml" rel="self" type="application/rss+xml" />
     <description>Closings, title insurance, and Tampa Bay real estate news from Firm Title TB.</description>
     <language>en-us</language>
@@ -1107,13 +1111,13 @@ function updateSitemapXml(sitemap, posts) {
   const newest = posts.length ? posts[0].date : null;
   const entries = [`
   <url>
-    <loc>${SITE_URL}/blog</loc>${newest ? `
+    <loc>${blogUrl()}</loc>${newest ? `
     <lastmod>${newest}</lastmod>` : ''}
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`].concat(posts.map((p) => `
   <url>
-    <loc>${SITE_URL}/blog/${p.slug}</loc>
+    <loc>${blogUrl(p.slug)}</loc>
     <lastmod>${p.date}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

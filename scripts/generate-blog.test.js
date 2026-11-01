@@ -95,7 +95,7 @@ test('sitemap: blog entries are replaced and lastmod is stable', () => {
   const out = blog.updateSitemapXml(base, posts);
   assert.ok(!out.includes('/blog/gone'));
   assert.ok(out.includes('<loc>https://firmtitletb.com/</loc>'));
-  assert.match(out, /<loc>https:\/\/firmtitletb\.com\/blog<\/loc>\s*<lastmod>2026-05-02<\/lastmod>/);
+  assert.match(out, /<loc>https:\/\/firmtitletb\.com\/blog\/<\/loc>\s*<lastmod>2026-05-02<\/lastmod>/);
   assert.equal(blog.updateSitemapXml(out, posts), out, 'second run is a no-op');
 });
 
@@ -154,4 +154,16 @@ test('closing posts work without the pin emoji', () => {
   assert.ok(html.includes('<p class="listing-price">$375,000</p>'));
   assert.ok(html.includes('<p class="listing-address">410 S Armenia Ave Unit 926, Tampa, FL 33609</p>'));
   assert.ok(blog.generateBlogListHtml([post], '/blog/blog.css').includes('<span class="cover-price">$375,000</span>'));
+});
+
+test('blog addresses end in a slash, matching how GitHub Pages serves them', () => {
+  const posts = toPosts([row({ Slug: 'a', Date: '2026-05-02' }), row({ Slug: 'b', Date: '2026-05-01' })]);
+  const post = blog.generatePostHtml(posts[0], posts, '/blog/blog.css');
+  assert.ok(post.includes('<link rel="canonical" href="https://firmtitletb.com/blog/a/" />'));
+  assert.ok(post.includes('href="/blog/b/"'), 'links to other posts');
+  assert.ok(!/href="\/blog"/.test(post) && !/href="\/blog\/[A-Za-z0-9-]+"/.test(post), 'no link without the slash');
+  const list = blog.generateBlogListHtml(posts, '/blog/blog.css');
+  assert.ok(list.includes('<link rel="canonical" href="https://firmtitletb.com/blog/" />'));
+  assert.ok(blog.generateFeed(posts).includes('<link>https://firmtitletb.com/blog/a/</link>'));
+  assert.ok(blog.updateSitemapXml('<urlset>\n</urlset>\n', posts).includes('<loc>https://firmtitletb.com/blog/b/</loc>'));
 });

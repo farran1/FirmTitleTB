@@ -84,7 +84,7 @@ jobs:
           # The live nav comes from the React bundle; a redeploy from the source
           # branch without the Blog link would silently drop it.
           bundle=$(grep -o 'src="/assets/index-[^"]*\.js"' index.html | head -1 | sed 's/src="\///; s/"$//')
-          if ! grep -q 'href:"/blog"' "$bundle"; then
+          if ! grep -q 'href:"/blog/"' "$bundle"; then
             echo "::error file=$bundle::The homepage menu has no Blog link"
             exit 1
           fi
