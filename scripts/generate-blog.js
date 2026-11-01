@@ -716,7 +716,7 @@ ${headExtra}
 ${body}
 
     <footer class="site-footer">
-      <p>&copy; ${new Date().getFullYear()} FirmTitleTB. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} Firm Title TB, LLC. All rights reserved.</p>
       <div class="footer-links">
         <a href="/privacy">Privacy Policy</a><span aria-hidden="true">|</span><a href="/sms-opt-in">SMS Opt-In</a><span aria-hidden="true">|</span><a href="/blog/feed.xml">RSS</a>
       </div>

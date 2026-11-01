@@ -141,3 +141,8 @@ test('a Category column wins over the automatic category', () => {
   const [post] = toPosts([row({ Title: 'development Update', Category: 'Market News' })]);
   assert.equal(post.category, 'Market News');
 });
+
+test('footer uses the legal business name', () => {
+  const [post] = toPosts([row({})]);
+  assert.match(blog.generatePostHtml(post, [post], '/blog/blog.css'), /Firm Title TB, LLC\. All rights reserved\./);
+});
