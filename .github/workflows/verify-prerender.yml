@@ -76,6 +76,20 @@ jobs:
             || { echo "::error::scripts/generate-blog.js is missing — the daily blog workflow will fail"; fail=1; }
           exit $fail
 
+      - name: Blog generator tests pass
+        run: node --test scripts/generate-blog.test.js
+
+      - name: Homepage navigation links to the blog
+        run: |
+          # The live nav comes from the React bundle; a redeploy from the source
+          # branch without the Blog link would silently drop it.
+          bundle=$(grep -o 'src="/assets/index-[^"]*\.js"' index.html | head -1 | sed 's/src="\///; s/"$//')
+          if ! grep -q 'href:"/blog/"' "$bundle"; then
+            echo "::error file=$bundle::The homepage menu has no Blog link"
+            exit 1
+          fi
+          [ -f blog/feed.xml ] || { echo "::error::blog/feed.xml is missing"; exit 1; }
+
       - name: Every sitemap URL resolves to a file on disk
         run: |
           fail=0
